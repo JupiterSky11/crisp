@@ -19,7 +19,7 @@
         devShells.default = with pkgs; mkShell {
           buildInputs = [
             pkg-config
-			mold
+            mold
             rust-bin.stable.latest.default
           ];
 
