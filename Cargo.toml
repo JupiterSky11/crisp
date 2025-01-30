@@ -1,6 +1,4 @@
-[package]
-name = "crisp-core"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = ["crisp-core", "crisp-macro"]
+resolver = "2"
 
-[dependencies]
