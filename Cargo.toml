@@ -2,3 +2,11 @@
 members = ["crisp-core", "crisp-macro"]
 resolver = "2"
 
+<<<<<<< HEAD
+||||||| 1910dc8
+[dependencies]
+=======
+[dependencies]
+proc-macro2 = "^1.0"
+syn = { version = "^2.0", features = ["extra-traits"] } # Use "extra-traits" feature when debugging macros.
+>>>>>>> refs/remotes/origin/master
