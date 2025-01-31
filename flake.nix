@@ -20,6 +20,8 @@
           buildInputs = [
             pkg-config
             mold
+            clang
+            bacon
             rust-bin.stable.latest.default
           ];
 
