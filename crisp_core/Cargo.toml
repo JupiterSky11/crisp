@@ -1,0 +1,9 @@
+[package]
+name = "crisp_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+proc-macro2 = "^1.0"
+syn = { version = "^2.0", features = ["parsing", "extra-traits"] } # Use "extra-traits" feature when debugging macros. (increases compile time a lot)
+quote = "^1.0"

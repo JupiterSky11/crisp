@@ -3,16 +3,30 @@
 version = 4
 
 [[package]]
-name = "crisp-core"
-version = "0.1.0"
-
-[[package]]
-name = "crisp-macro"
+name = "crisp_core"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "crisp_macro"
+version = "0.1.0"
+dependencies = [
+ "crisp_core",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "crisp_test"
+version = "0.1.0"
+dependencies = [
+ "crisp_core",
+ "crisp_macro",
 ]
 
 [[package]]
@@ -35,9 +49,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.96"
+version = "2.0.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5d0adab1ae378d7f53bdebc67a39f1f151407ef230f0ce2883572f5d8985c80"
+checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
 dependencies = [
  "proc-macro2",
  "quote",

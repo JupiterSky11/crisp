@@ -1,0 +1,8 @@
+[package]
+name = "crisp_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crisp_core = { path = "../crisp_core" }
+crisp_macro = { path = "../crisp_macro" }
