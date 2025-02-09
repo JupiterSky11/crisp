@@ -1,3 +1,11 @@
+[package]
+name = "crisp"
+version = "0.1.0"
+edition = "2021"
+
 [workspace]
-members = ["crisp_core", "crisp_macro", "crisp_test"]
+members = [ "crisp_api", "crisp_core", "crisp_macro", "crisp_test" ]
 resolver = "2"
+
+[dependencies]
+crisp_api = { path = "crisp_api" }

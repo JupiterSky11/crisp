@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "crisp"
+version = "0.1.0"
+dependencies = [
+ "crisp_api",
+]
+
+[[package]]
+name = "crisp_api"
+version = "0.1.0"
+dependencies = [
+ "crisp_core",
+ "crisp_macro",
+]
+
+[[package]]
 name = "crisp_core"
 version = "0.1.0"
 dependencies = [
@@ -25,8 +40,7 @@ dependencies = [
 name = "crisp_test"
 version = "0.1.0"
 dependencies = [
- "crisp_core",
- "crisp_macro",
+ "crisp_api",
 ]
 
 [[package]]

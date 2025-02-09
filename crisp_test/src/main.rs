@@ -1,5 +1,4 @@
-use crisp_macro::eval;
-use crisp_core::CrispType;
+use crisp_api::*;
 fn main() {
     if let CrispType::Int(x) = eval!(+ 0 0) {
         println!("Hello, world! {}", x);
@@ -10,8 +9,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crisp_macro::eval;
-    use crisp_core::CrispType;
+    use crisp_api::*;
 
     #[test]
     fn it_works() {
