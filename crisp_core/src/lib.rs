@@ -1,6 +1,7 @@
+use std::fmt::Debug;
+
 use quote::quote;
 use syn::{
-    Token,
     parse::{
         Parse,
         ParseStream,
@@ -10,6 +11,10 @@ use syn::{
 };
 use proc_macro2::TokenStream as TokenStream2;
 
+mod interp;
+mod parser;
+
+#[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Crisp {
     contents: Vec<CrispType>,
 }
@@ -23,9 +28,6 @@ impl Parse for Crisp {
 }
 
 impl Crisp {
-    pub fn eval(self) -> Crisp {
-        Crisp { contents: vec![CrispType::List(self.contents).eval()] }
-    }
     pub fn to_rust(self) -> TokenStream2 {
         let mut stream = TokenStream2::new();
         let list = self.contents;
@@ -53,52 +55,57 @@ fn parse_vec<T: Parse>(input: ParseStream) -> Vec<T> {
     output
 }
 
-pub enum CrispType {
-    Fn,
-    Int(i32),
-    List(Vec<CrispType>),
+#[derive(Clone)]
+pub struct CrispFn {
+    pub name: String,
+    pub args: Vec<(String, CrispType)>,
+    pub body: Vec<CrispType>,
 }
 
-impl CrispType {
-    fn eval(&self) -> CrispType {
-        match self {
-            CrispType::List(l) => {
-                println!("Length {}", l.len());
-                if l.len() >= 3 {
-                    match l[0] {
-                        CrispType::Fn => {
-                            let a = match l[1].eval() {
-                                CrispType::Int(x) => x,
-                                _ => panic!(),
-                            };
-                            let b = match l[2].eval() {
-                                CrispType::Int(x) => x,
-                                _ => panic!(),
-                            };
-                            // --- Preferred solution on Rust version 2024
-                            // if let CrispType::Int(a) = l[1] && let CrispType::Int(b) = l[2] {
-                            //     Crisp { contents: List { contents: vec![CrispType::Int(a + b)] } }
-                            // } else { panic!() }
-                            CrispType::Int(a + b)
-                        },
-                        _ => panic!(),
-                    }
-                } else { panic!() }
-            },
-            CrispType::Int(x) => CrispType::Int(*x),
-            _ => CrispType::Fn,
+impl Debug for CrispFn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut args = String::new();
+        for (i, arg) in self.args.iter().enumerate() {
+            if i == 0 {
+                args += format!("{:?}", &arg).as_str();
+            } else {
+                args += format!(", {:?}", &arg).as_str();
+            }
         }
+        f.debug_tuple("CrispFn").field(&format!("fn ({}) {{{:?}}}", args, self.body)).finish()
     }
+}
+
+impl Parse for CrispFn {
+    fn parse(_input: ParseStream) -> syn::Result<Self> {
+        todo!()
+    }
+}
+
+impl ToTokens for CrispFn {
+    fn to_tokens(&self, input: &mut TokenStream2) {
+        let output = quote! {{}};
+        input.extend(output);
+    }
+}
+
+#[cfg_attr(feature = "debug", derive(Debug))]
+#[derive(Clone)]
+pub enum CrispType {
+    Fn(CrispFn),
+    Int(i32),
+    List(Option<Vec<CrispType>>),
 }
 
 impl Parse for CrispType {
     fn parse(input: syn::parse::ParseStream) -> Result<Self, syn::Error> {
-        if let Ok(_) = input.parse::<Token![+]>() {
-            return Ok(CrispType::Fn)
-        }
+        // if let Ok(_) = input.parse::<Token![+]>() {
+        //     let args = parse_vec(input);
+        //     return Ok(CrispType::Fn(CrispFn { name: "+".into(), args, body: todo!() }))
+        // }
         
         if let Ok(l) = parse_for_paren(input) {
-            return Ok(CrispType::List(l))
+            return Ok(CrispType::List(Some(l)))
         };
 
         let t = input.parse::<LitInt>()?;
@@ -115,11 +122,29 @@ fn parse_for_paren(input: ParseStream) -> Result<Vec<CrispType>, syn::Error> {
 impl ToTokens for CrispType {
     fn to_tokens(&self, input: &mut TokenStream2) {
         let output = match self {
-            CrispType::Fn      => quote!{CrispType::Fn},
+            CrispType::Fn(fn_)      => quote!{CrispType::Fn(#fn_)},
             CrispType::Int(x)  => quote!{CrispType::Int(#x)},
-            CrispType::List(x) => quote!{ (#(#x) *) },
+            CrispType::List(Some(x)) => quote!{ (#(#x) *) },
             _ => TokenStream2::new(),
         };
         input.extend(output)
     }
 }
+
+// #[cfg(feature = "debug")]
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_parse_str() {
+//         let t: CrispType = syn::parse_str("(+ 1 2)").unwrap();
+//         assert_eq!(CrispType::List(vec![CrispType::Fn, CrispType::Int(1), CrispType::Int(2)]), t);
+//     }
+
+//     #[test]
+//     fn test_parse_macro() {
+//         let t: Crisp = syn::parse_str("#[(+ 1 2) (+ 3 4)]").unwrap();
+//         assert_eq !(Crisp { contents: vec![CrispType::List(vec![CrispType::Fn, CrispType::Int(1), CrispType::Int(2)]), CrispType::List(vec![CrispType::Fn, CrispType::Int(3), CrispType::Int(4)])] }, t);
+//     }
+// }

@@ -11,5 +11,6 @@ pub fn eval(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     println!("Parsing input as ParseStream");
     let crisp: Crisp = parse_macro_input!(input as Crisp);
     println!("Evaluating...");
-    crisp.eval().to_rust().into()
+    todo!()
+    // crisp.eval().to_rust().into()
 }
