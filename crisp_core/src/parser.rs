@@ -2,7 +2,7 @@ use std::ops::Deref;
 use proc_macro2::{Delimiter, Span, TokenTree};
 use quote::ToTokens;
 use syn::parse::{Parse, ParseStream};
-use syn::{LitFloat, LitInt, Token};
+use syn::{Error, LitFloat, LitInt};
 
 fn parse_integer_from_token_tree(tt: TokenTree, span: Span) -> syn::Result<LitInt> {
     if let TokenTree::Literal(lit) = tt {
@@ -24,7 +24,7 @@ fn parse_float_from_token_tree(tt: TokenTree, span: Span) -> syn::Result<LitFloa
     }
 }
 
-fn parse_sign<'a>((tt, next): (TokenTree, syn::buffer::Cursor<'a>), span: Span) -> syn::Result<(Option<bool>, TokenTree, syn::buffer::Cursor<'a>)> {
+fn parse_sign<'a>((tt, next): (TokenTree, syn::buffer::Cursor<'a>), _span: Span) -> syn::Result<(Option<bool>, TokenTree, syn::buffer::Cursor<'a>)> {
     if let TokenTree::Punct(punct) = tt {
         let Some((tt, next)) = next.token_tree() else {
             return Err(syn::Error::new(punct.span(), "Expected number after punctuation"));
@@ -66,13 +66,9 @@ fn check_rational<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> s
     }
 }
 
-fn parse_rational(input: ParseStream) -> syn::Result<Rational> {
-    input.step(|cursor| check_rational(cursor))
-}
-
 impl Parse for Rational {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        parse_rational(input)
+        input.step(|cursor| check_rational(cursor))
     }
 }
 
@@ -96,13 +92,9 @@ fn check_real<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::
     }
 }
 
-fn parse_real(input: ParseStream) -> syn::Result<Real> {
-    input.step(|cursor| check_real(cursor))
-}
-
 impl Parse for Real {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        parse_real(input)
+        input.step(|cursor| check_real(cursor))
     }
 }
 
@@ -167,13 +159,9 @@ fn check_complex<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> sy
     }
 }
 
-fn parse_complex(input: ParseStream) -> syn::Result<Complex> {
-    input.step(|cursor| check_complex(cursor))
-}
-
 impl Parse for Complex {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        parse_complex(input)
+        input.step(|cursor| check_complex(cursor))
     }
 }
 
@@ -195,13 +183,9 @@ fn check_number<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn
     }
 }
 
-fn parse_number(input: ParseStream) -> syn::Result<Number> {
-    input.step(|cursor| check_number(cursor))
-}
-
 impl Parse for Number {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        parse_number(input)
+        input.step(|cursor| check_number(cursor))
     }
 }
 
@@ -232,7 +216,23 @@ impl From<Rational> for Number {
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
-pub struct Symbol {}
+pub struct Symbol {
+    ident: syn::Ident,
+}
+
+fn check_symbol<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Symbol, syn::buffer::Cursor<'a>)> {
+    if let Some((ident, next)) = input.ident() {
+        Ok((Symbol { ident }, next))
+    } else {
+        Err(Error::new(input.span(), "expected identifier"))
+    }
+}
+
+impl Parse for Symbol {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        input.step(|cursor| check_symbol(cursor))
+    }
+}
 
 // Token
 
@@ -243,22 +243,29 @@ pub enum CrispToken {
     Symbol(Symbol),
 }
 
+fn check_token<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(CrispToken, syn::buffer::Cursor<'a>)> {
+    let input = *input;
+    if let Ok((number, next)) = check_number(&input) {
+        Ok((CrispToken::Number(number), next))
+    } else if let Ok((symbol, next)) = check_symbol(&input) {
+        Ok((CrispToken::Symbol(symbol), next))
+    } else {
+        Err(Error::new(input.span(), "Expected token"))
+    }
+}
+
 impl Parse for CrispToken {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if let Ok(number) = input.parse::<Number>() {
-            Ok(CrispToken::Number(number))
-        } else {
-            todo!()
-        }
+        input.step(|cursor| check_token(cursor))
     }
 }
 
 impl ToTokens for CrispToken {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+    fn to_tokens(&self, _tokens: &mut proc_macro2::TokenStream) {
         match self {
             CrispToken::Number(n) => {
                 let n: Number = n.clone();
-                let tokens_number: proc_macro2::TokenStream = match n {
+                let _tokens_number: proc_macro2::TokenStream = match n {
                     Number::Real(r) => {
                         let r: Real = r.clone();
                         match r {
@@ -274,7 +281,7 @@ impl ToTokens for CrispToken {
                         }
                     },
                 };
-                tokens_number.to_tokens(tokens);
+                //tokens_number.to_tokens(tokens);
             }
             CrispToken::Symbol(_) => {}
         }
@@ -283,41 +290,50 @@ impl ToTokens for CrispToken {
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{Number, Real};
+    use crate::parser::{CrispToken, Number};
 
     #[test]
     fn can_parse_integer() {
-        let num: Number = syn::parse_str("-1.23").expect("Not a number");
-        let num: Number = syn::parse_str("3.14f64").expect("Not a number");
+        syn::parse_str::<CrispToken>("-1.23").expect("Not a number");
+        syn::parse_str::<CrispToken>("3.14f64").expect("Not a number");
     }
 
     #[test]
     fn can_parse_rational() {
-        let num: Number = syn::parse_str("4/56").expect("Not a number");
+        syn::parse_str::<CrispToken>("4/56").expect("Not a number");
     }
 
     #[test]
     fn can_parse_real() {
-        let num: Real = syn::parse_str("3.14f64").expect("Not a number");
-        let num: Real = syn::parse_str("42u128").expect("Not a number");
-        let num: Real = syn::parse_str("-1/12u8").expect("Not a number");
-        let num: Real = syn::parse_str("4e1025").expect("Not a number");
+        syn::parse_str::<CrispToken>("3.14f64").expect("Not a number");
+        syn::parse_str::<CrispToken>("42u128").expect("Not a number");
+        syn::parse_str::<CrispToken>("-1/12u8").expect("Not a number");
+        syn::parse_str::<CrispToken>("4e1025").expect("Not a number");
     }
 
     #[test]
     fn can_parse_complex() {
-        let num: Number = syn::parse_str("#C(3.14 -1.0)").expect("Not a number");
+        syn::parse_str::<CrispToken>("#C(3.14 -1.0)").expect("Not a number");
     }
 
     #[test]
     fn can_parse_big_integers() {
-        let num: Number = syn::parse_str("100000000000000000000000000000000000000000000000000000000000000000000000000000000").expect("Not a number");
-        println!("{:?}", num);
+        syn::parse_str::<CrispToken>("100000000000000000000000000000000000000000000000000000000000000000000000000000000").expect("Not a number");
     }
 
     #[test]
     fn can_parse_big_bigfloats() {
-        let num: Real = syn::parse_str("4.33333333333333333333333333333333333333333333333333333333333333333333333e100000000000000000000000000000000000000000000000000000000").expect("Not a number");
-        println!("{:?}", num);
+        syn::parse_str::<CrispToken>("4.33333333333333333333333333333333333333333333333333333333333333333333333e100000000000000000000000000000000000000000000000000000000").expect("Not a number");
+    }
+
+    #[test]
+    fn errors_on_wrong_rational_format() {
+        // A rational has to be two integers
+        let num = syn::parse_str::<CrispToken>("1/1.2");
+        assert!(num.is_err());
+        let num = syn::parse_str::<CrispToken>("2.3/1");
+        assert!(num.is_err());
+        let num = syn::parse_str::<CrispToken>("4.5/6.7");
+        assert!(num.is_err());
     }
 }
