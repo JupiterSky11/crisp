@@ -11,8 +11,9 @@ use syn::{
 };
 use proc_macro2::TokenStream as TokenStream2;
 
-mod interp;
-mod parser;
+pub mod interp;
+pub mod parser;
+pub use num;
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Crisp {

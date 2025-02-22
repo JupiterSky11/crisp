@@ -1,27 +1,17 @@
-use crisp_macro::eval;
-use crisp_core::CrispType;
+extern crate crisp_core;
+
 fn main() {
-    // if let CrispType::Int(x) = eval!(+ 0 0) {
-    //     println!("Hello, world! {}", x);
-    // } else {
-    //     println!("Hello, world!  (Crisp failure.)")
-    // }
 }
 
 #[cfg(test)]
 mod tests {
-    use crisp_macro::eval;
-    use crisp_core::CrispType;
-
     #[test]
     fn it_works() {
-        // let mut result: i32 = 0;
-        // if let CrispType::Int(x) = eval!(+ (+ -1 3) (+ 2 (+ 2 2))) {
-        //     result = x;
-        // }
-        // assert_eq!(result, 8);
+        let x = crisp_macro::crisp_token!{#C(-2/3 2/4)};
+        println!("{}", x);
+        let G = crisp_macro::crisp_token!(+999999999999999999999999999999999999999999000000000000088888888888888888888888888888888888888888888888888888888999999999999999999999999);
+        println!("{}", G);
+        // let G = crisp_macro::crisp_token!(+9.9999999999999999999999999999e10000000000000000);
+        // println!("{}", G);
     }
 }
-
-
-

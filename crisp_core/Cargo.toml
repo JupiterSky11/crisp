@@ -8,6 +8,8 @@ proc-macro2 = "^1.0"
 syn = { version = "^2.0", features = ["parsing"] } # Use "extra-traits" feature when debugging macros. (increases compile time a lot)
 quote = "^1.0"
 litrs = "^0.4"
+num = "^0.4"
+astro-float = "^0.9"
 
 [features]
 default = ["debug"]
