@@ -4,7 +4,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, ParseStream};
 use syn::{LitFloat, LitInt};
 
-pub mod _inner {
+pub(self) mod _inner {
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
     use core::fmt::{Debug, Formatter};
     use core::ops::Deref;
@@ -442,8 +442,14 @@ pub mod _inner {
             } else {
                 return Err(ParseComplexError::NotComplex(next.span()));
             };
-            if let Some((inner, _, next2)) = next.group(Delimiter::Parenthesis) {
+            if let Some((inner, inner_span, next2)) = next.group(Delimiter::Parenthesis) {
+                if inner.eof() {
+                    return Err(ParseComplexError::NoRealOrImaginary(syn::spanned::Spanned::span(&inner_span)));
+                }
                 let (real, inner2) = check_real(&inner)?;
+                if inner2.eof() {
+                    return Err(ParseComplexError::NoRealOrImaginary(inner2.span()));
+                }
                 match check_real(&inner2)? {
                     (
                         Real::Float {
@@ -453,7 +459,7 @@ pub mod _inner {
                         next3,
                     ) => {
                         if !next3.eof() {
-                            return Err(ParseComplexError::Empty(next3.span()));
+                            return Err(ParseComplexError::NoRealOrImaginary(next3.span()));
                         }
                         match real {
                             Real::Float {
@@ -475,7 +481,7 @@ pub mod _inner {
                     }
                     (Real::Rational(imaginary), next3) => {
                         if !next3.eof() {
-                            return Err(ParseComplexError::Empty(next3.span()));
+                            return Err(ParseComplexError::NoRealOrImaginary(next3.span()));
                         }
                         match real {
                             Real::Float { .. } => {
