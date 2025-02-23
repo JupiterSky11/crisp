@@ -1,6 +1,6 @@
+use crisp_core::Crisp;
 use quote::quote;
 use syn::parse_macro_input;
-use crisp_core::Crisp;
 
 // #[proc_macro]
 // pub fn eval(_input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -18,6 +18,7 @@ pub fn eval(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 #[proc_macro]
 pub fn crisp_token(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let x: crisp_core::parser::CrispToken = parse_macro_input!(input as crisp_core::parser::CrispToken);
+    let x: crisp_core::parser::CrispToken =
+        parse_macro_input!(input as crisp_core::parser::CrispToken);
     quote!(#x).into()
 }

@@ -1,19 +1,20 @@
+use crate::parser::_inner::*;
 use proc_macro2::{Punct, Spacing, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, ParseStream};
 use syn::{LitFloat, LitInt};
-use crate::parser::_inner::*;
 
 pub mod _inner {
-    use std::ops::Deref;
-    use proc_macro2::{Delimiter, Span, TokenTree};
-    use syn::{Error, LitFloat, LitInt};
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
+    use proc_macro2::{Delimiter, Span, TokenTree};
+    use std::ops::Deref;
+    use syn::{Error, LitFloat, LitInt};
 
     pub fn parse_integer_from_token_tree(tt: TokenTree, span: Span) -> syn::Result<LitInt> {
         if let TokenTree::Literal(lit) = tt {
             let lit2 = lit.clone();
-            litrs::IntegerLit::try_from(lit).or(Err(syn::Error::new(span, "Expected integer literal")))?;
+            litrs::IntegerLit::try_from(lit)
+                .or(Err(syn::Error::new(span, "Expected integer literal")))?;
             Ok(LitInt::from(lit2))
         } else {
             Err(syn::Error::new(span, "Expected integer literal"))
@@ -23,29 +24,41 @@ pub mod _inner {
     pub fn parse_float_from_token_tree(tt: TokenTree, span: Span) -> syn::Result<LitFloat> {
         if let TokenTree::Literal(lit) = tt {
             let lit2 = lit.clone();
-            litrs::FloatLit::try_from(lit).or(Err(syn::Error::new(span, "Expected float literal")))?;
+            litrs::FloatLit::try_from(lit)
+                .or(Err(syn::Error::new(span, "Expected float literal")))?;
             Ok(LitFloat::from(lit2))
         } else {
             Err(syn::Error::new(span, "Expected float literal"))
         }
     }
 
-    pub fn parse_sign<'a>((tt, next): (TokenTree, syn::buffer::Cursor<'a>), _span: Span) -> syn::Result<(Option<bool>, TokenTree, syn::buffer::Cursor<'a>)> {
+    pub fn parse_sign(
+        (tt, next): (TokenTree, syn::buffer::Cursor),
+        _span: Span,
+    ) -> syn::Result<(Option<bool>, TokenTree, syn::buffer::Cursor)> {
         if let TokenTree::Punct(punct) = tt {
             let Some((tt, next)) = next.token_tree() else {
-                return Err(syn::Error::new(punct.span(), "Expected number after punctuation"));
+                return Err(syn::Error::new(
+                    punct.span(),
+                    "Expected number after punctuation",
+                ));
             };
             match punct.as_char() {
                 '+' => Ok((Some(false), tt, next)),
                 '-' => Ok((Some(true), tt, next)),
-                _ => Err(syn::Error::new(punct.span(), "Expected '+' or '-' before number"))
+                _ => Err(syn::Error::new(
+                    punct.span(),
+                    "Expected '+' or '-' before number",
+                )),
             }
         } else {
             Ok((None, tt, next))
         }
     }
 
-    pub fn check_rational<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Rational, syn::buffer::Cursor<'a>)> {
+    pub fn check_rational<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(Rational, syn::buffer::Cursor<'a>)> {
         if let Some((tt, next)) = input.token_tree() {
             let (negative, tt, next) = parse_sign((tt, next), next.span())?;
             let numerator = parse_integer_from_token_tree(tt, next.span())?;
@@ -53,32 +66,55 @@ pub mod _inner {
                 if punct.as_char() == '/' {
                     if let Some((tt2, next3)) = next2.token_tree() {
                         let denominator = parse_integer_from_token_tree(tt2, next3.span())?;
-                        return Ok((Rational::Ratio { negative, numerator, denominator }, next3));
+                        return Ok((
+                            Rational::Ratio {
+                                negative,
+                                numerator,
+                                denominator,
+                            },
+                            next3,
+                        ));
                     } else {
                         return Err(syn::Error::new(next2.span(), "Expected integer literal"));
                     }
                 }
             }
-            Ok((Rational::Integer { negative, number: numerator }, next))
+            Ok((
+                Rational::Integer {
+                    negative,
+                    number: numerator,
+                },
+                next,
+            ))
         } else {
             Err(syn::Error::new(input.span(), "Expected Rational"))
         }
     }
 
-    pub fn check_real<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Real, syn::buffer::Cursor<'a>)> {
+    pub fn check_real<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(Real, syn::buffer::Cursor<'a>)> {
         let input = *input;
         if let Ok((rational, next)) = check_rational(&input) {
             Ok((Real::Rational(rational), next))
         } else if let Some((tt, next)) = input.token_tree() {
             let (negative, tt, next) = parse_sign((tt, next), next.span())?;
             let float = parse_float_from_token_tree(tt, next.span())?;
-            return Ok((Real::Float {negative, number:float}, next));
+            return Ok((
+                Real::Float {
+                    negative,
+                    number: float,
+                },
+                next,
+            ));
         } else {
             return Err(syn::Error::new(input.span(), "Expected real literal"));
         }
     }
 
-    pub fn check_complex<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Complex, syn::buffer::Cursor<'a>)> {
+    pub fn check_complex<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(Complex, syn::buffer::Cursor<'a>)> {
         if let Some((punct, next)) = input.punct() {
             if punct.as_char() != '#' {
                 return Err(syn::Error::new(input.span(), "Expected '#C'"));
@@ -92,15 +128,32 @@ pub mod _inner {
                 if let Ok((real, inner2)) = check_real(&inner) {
                     match check_real(&inner2) {
                         Err(err) => Err(err),
-                        Ok((Real::Float {negative: imaginary_negative, number: imaginary}, next3)) => {
+                        Ok((
+                            Real::Float {
+                                negative: imaginary_negative,
+                                number: imaginary,
+                            },
+                            next3,
+                        )) => {
                             if !next3.eof() {
                                 return Err(syn::Error::new(next3.span(), "Expected ')'"));
                             }
                             match real {
-                                Real::Float { negative: real_negative, number: real } => {
-                                    Ok((Complex::Float {real_negative, real, imaginary_negative, imaginary}, next2))
+                                Real::Float {
+                                    negative: real_negative,
+                                    number: real,
+                                } => Ok((
+                                    Complex::Float {
+                                        real_negative,
+                                        real,
+                                        imaginary_negative,
+                                        imaginary,
+                                    },
+                                    next2,
+                                )),
+                                Real::Rational(_) => {
+                                    Err(syn::Error::new(next3.span(), "Expected float"))
                                 }
-                                Real::Rational(_) => Err(syn::Error::new(next3.span(), "Expected float")),
                             }
                         }
                         Ok((Real::Rational(imaginary), next3)) => {
@@ -108,9 +161,11 @@ pub mod _inner {
                                 return Err(syn::Error::new(next3.span(), "Expected ')'"));
                             }
                             match real {
-                                Real::Float { .. } => Err(syn::Error::new(next3.span(), "Expected rational")),
+                                Real::Float { .. } => {
+                                    Err(syn::Error::new(next3.span(), "Expected rational"))
+                                }
                                 Real::Rational(real) => {
-                                    Ok((Complex::Rational {real, imaginary}, next2))
+                                    Ok((Complex::Rational { real, imaginary }, next2))
                                 }
                             }
                         }
@@ -126,7 +181,9 @@ pub mod _inner {
         }
     }
 
-    pub fn check_number<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Number, syn::buffer::Cursor<'a>)> {
+    pub fn check_number<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(Number, syn::buffer::Cursor<'a>)> {
         let input = *input;
         if let Ok((complex, next)) = check_complex(&input) {
             Ok((Number::Complex(complex), next))
@@ -137,7 +194,9 @@ pub mod _inner {
         }
     }
 
-    pub fn check_symbol<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(Symbol, syn::buffer::Cursor<'a>)> {
+    pub fn check_symbol<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(Symbol, syn::buffer::Cursor<'a>)> {
         if let Some((ident, next)) = input.ident() {
             Ok((Symbol { ident }, next))
         } else {
@@ -145,7 +204,9 @@ pub mod _inner {
         }
     }
 
-    pub fn check_token<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(input: C) -> syn::Result<(CrispToken, syn::buffer::Cursor<'a>)> {
+    pub fn check_token<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
+        input: C,
+    ) -> syn::Result<(CrispToken, syn::buffer::Cursor<'a>)> {
         let input = *input;
         if let Ok((number, next)) = check_number(&input) {
             Ok((CrispToken::Number(number), next))
@@ -160,14 +221,29 @@ pub mod _inner {
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
 pub enum Rational {
-    Integer{negative: Option<bool>, number: LitInt},
-    Ratio{negative: Option<bool>, numerator: LitInt, denominator: LitInt},
+    Integer {
+        negative: Option<bool>,
+        number: LitInt,
+    },
+    Ratio {
+        negative: Option<bool>,
+        numerator: LitInt,
+        denominator: LitInt,
+    },
 }
 
 impl Rational {
     fn is_negative(&self) -> bool {
-        matches!(self, Rational::Integer { negative: Some(true), .. }
-            | Rational::Ratio { negative: Some(true), .. })
+        matches!(
+            self,
+            Rational::Integer {
+                negative: Some(true),
+                ..
+            } | Rational::Ratio {
+                negative: Some(true),
+                ..
+            }
+        )
     }
 }
 
@@ -179,18 +255,28 @@ impl Parse for Rational {
 
 impl ToTokens for Rational {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        if self.is_negative() {
-            tokens.append(Punct::new('-', Spacing::Alone));
-        }
+        let is_negative = self.is_negative();
         match self {
             Rational::Integer { number, .. } => {
                 let formatted = number.to_string();
-                tokens.append_all(quote! {{use ::core::str::FromStr;::crisp_core::num::BigInt::from_str(#formatted).unwrap()}})
+                if is_negative {
+                    tokens.append_all(quote! {::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap())})
+                } else {
+                    tokens.append_all(quote! {<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap()})
+                }
             }
-            Rational::Ratio { numerator, denominator, .. } => {
+            Rational::Ratio {
+                numerator,
+                denominator,
+                ..
+            } => {
                 let formatted_numerator = numerator.to_string();
                 let formatted_denominator = denominator.to_string();
-                tokens.append_all(quote! {{use ::core::str::FromStr;::crisp_core::num::BigRational::new(::crisp_core::num::BigInt::from_str(#formatted_numerator).unwrap(),::crisp_core::num::BigInt::from_str(#formatted_denominator).unwrap())}});
+                if is_negative {
+                    tokens.append_all(quote! {::crisp_core::num::BigRational::new(::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap()),<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
+                } else {
+                    tokens.append_all(quote! {::crisp_core::num::BigRational::new(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap(),<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
+                }
             }
         };
     }
@@ -199,7 +285,10 @@ impl ToTokens for Rational {
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
 pub enum Real {
-    Float{negative: Option<bool>, number: LitFloat},
+    Float {
+        negative: Option<bool>,
+        number: LitFloat,
+    },
     Rational(Rational),
 }
 
@@ -207,7 +296,10 @@ impl Real {
     fn is_negative(&self) -> bool {
         match self {
             Real::Rational(rational) => rational.is_negative(),
-            Real::Float { negative: Some(true), .. } => true,
+            Real::Float {
+                negative: Some(true),
+                ..
+            } => true,
             _ => false,
         }
     }
@@ -224,10 +316,8 @@ impl ToTokens for Real {
         let is_negative = self.is_negative();
         match self {
             Real::Float { number, .. } => {
-                if is_negative {
-                    tokens.append(Punct::new('-', Spacing::Alone));
-                }
-                tokens.append_all(quote! {#number});
+                let formatted = format!("{}{}", if is_negative { "-" } else { "" }, number);
+                tokens.append_all(quote! {<::crisp_core::num::BigFloat as ::core::str::FromStr>::from_str(#formatted).unwrap()});
             }
             Real::Rational(rational) => tokens.append_all(quote! {#rational}),
         };
@@ -243,8 +333,16 @@ impl From<Rational> for Real {
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
 pub enum Complex {
-    Float { real_negative: Option<bool>, real: LitFloat, imaginary_negative: Option<bool>, imaginary: LitFloat },
-    Rational { real: Rational, imaginary: Rational },
+    Float {
+        real_negative: Option<bool>,
+        real: LitFloat,
+        imaginary_negative: Option<bool>,
+        imaginary: LitFloat,
+    },
+    Rational {
+        real: Rational,
+        imaginary: Rational,
+    },
 }
 
 impl Parse for Complex {
@@ -256,32 +354,39 @@ impl Parse for Complex {
 impl ToTokens for Complex {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            Complex::Float { real_negative, real, imaginary_negative, imaginary } => {
+            Complex::Float {
+                real_negative,
+                real,
+                imaginary_negative,
+                imaginary,
+            } => {
+                let formatted_real = real.to_string();
+                let formatted_imaginary = imaginary.to_string();
                 match real_negative {
                     Some(true) => {
                         match imaginary_negative {
                             Some(true) => {
-                                tokens.append_all(quote! {::crisp_core::num::Complex::new(- #real, -#imaginary)})
+                                tokens.append_all(quote! {::crisp_core::num::Complex::new(::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_real).unwrap()),::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap()))})
                             },
                             _ => {
-                                tokens.append_all(quote! {::crisp_core::num::Complex::new(- #real, #imaginary)})
+                                tokens.append_all(quote! {::crisp_core::num::Complex::new(::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_real).unwrap()), <::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap())})
                             }
                         }
                     },
                     _ => {
                         match imaginary_negative {
                             Some(true) => {
-                                tokens.append_all(quote! {::crisp_core::num::Complex::new(#real, -#imaginary)})
+                                tokens.append_all(quote! {::crisp_core::num::Complex::new(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_real).unwrap(),::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap()))})
                             },
                             _ => {
-                                tokens.append_all(quote! {::crisp_core::num::Complex::new(#real, #imaginary)})
+                                tokens.append_all(quote! {::crisp_core::num::Complex::new(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_real).unwrap(),<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap())})
                             }
                         }
                     }
                 }
             }
             Complex::Rational { real, imaginary } => {
-                tokens.append_all(quote!{::crisp_core::num::Complex::new(#real, #imaginary)})
+                tokens.append_all(quote! {::crisp_core::num::Complex::new(#real, #imaginary)})
             }
         }
     }
@@ -327,7 +432,7 @@ impl ToTokens for Number {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
             Number::Real(real) => tokens.append_all(quote! { #real }),
-            Number::Complex(complex) => tokens.append_all(quote!{ #complex }),
+            Number::Complex(complex) => tokens.append_all(quote! { #complex }),
         }
     }
 }
@@ -378,7 +483,7 @@ impl ToTokens for CrispToken {
                 symbol.to_tokens(tokens);
             }
         }
-        println!("{}", tokens.to_string());
+        println!("{}", tokens);
     }
 }
 
@@ -412,7 +517,10 @@ mod test {
 
     #[test]
     fn can_parse_big_integers() {
-        syn::parse_str::<CrispToken>("100000000000000000000000000000000000000000000000000000000000000000000000000000000").expect("Not a number");
+        syn::parse_str::<CrispToken>(
+            "100000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        )
+        .expect("Not a number");
     }
 
     #[test]

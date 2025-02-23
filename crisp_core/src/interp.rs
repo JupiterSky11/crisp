@@ -3,17 +3,19 @@ use std::collections::HashMap;
 use crate::CrispType;
 
 pub struct GlobalContext {
-    pub variables: HashMap<String, CrispType>
+    pub variables: HashMap<String, CrispType>,
 }
 
 pub struct Interpreter {
     global_context: GlobalContext,
 }
 
-impl Interpreter  {
+impl Interpreter {
     pub fn new() -> Self {
         Self {
-            global_context: GlobalContext { variables: HashMap::new() }
+            global_context: GlobalContext {
+                variables: HashMap::new(),
+            },
         }
     }
 }

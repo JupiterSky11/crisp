@@ -1,19 +1,16 @@
 use std::fmt::Debug;
 
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parse::{
-        Parse,
-        ParseStream,
-    },
     parenthesized,
+    parse::{Parse, ParseStream},
     LitInt,
 };
-use proc_macro2::TokenStream as TokenStream2;
 
 pub mod interp;
+pub mod num;
 pub mod parser;
-pub use num;
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Crisp {
@@ -41,7 +38,7 @@ impl Crisp {
 use quote::ToTokens;
 impl ToTokens for Crisp {
     fn to_tokens(&self, input: &mut TokenStream2) {
-        let output = quote!{self.contents};
+        let output = quote! {self.contents};
         input.extend(output)
     }
 }
@@ -73,7 +70,9 @@ impl Debug for CrispFn {
                 args += format!(", {:?}", &arg).as_str();
             }
         }
-        f.debug_tuple("CrispFn").field(&format!("fn ({}) {{{:?}}}", args, self.body)).finish()
+        f.debug_tuple("CrispFn")
+            .field(&format!("fn ({}) {{{:?}}}", args, self.body))
+            .finish()
     }
 }
 
@@ -104,9 +103,9 @@ impl Parse for CrispType {
         //     let args = parse_vec(input);
         //     return Ok(CrispType::Fn(CrispFn { name: "+".into(), args, body: todo!() }))
         // }
-        
+
         if let Ok(l) = parse_for_paren(input) {
-            return Ok(CrispType::List(Some(l)))
+            return Ok(CrispType::List(Some(l)));
         };
 
         let t = input.parse::<LitInt>()?;
@@ -123,9 +122,9 @@ fn parse_for_paren(input: ParseStream) -> Result<Vec<CrispType>, syn::Error> {
 impl ToTokens for CrispType {
     fn to_tokens(&self, input: &mut TokenStream2) {
         let output = match self {
-            CrispType::Fn(fn_)      => quote!{CrispType::Fn(#fn_)},
-            CrispType::Int(x)  => quote!{CrispType::Int(#x)},
-            CrispType::List(Some(x)) => quote!{ (#(#x) *) },
+            CrispType::Fn(fn_) => quote! {CrispType::Fn(#fn_)},
+            CrispType::Int(x) => quote! {CrispType::Int(#x)},
+            CrispType::List(Some(x)) => quote! { (#(#x) *) },
             _ => TokenStream2::new(),
         };
         input.extend(output)
