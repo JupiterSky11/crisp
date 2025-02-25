@@ -11,39 +11,81 @@ pub(self) mod _inner {
     use proc_macro2::{Delimiter, Span, TokenTree};
     use syn::{LitFloat, LitInt};
 
-    #[derive(Debug)]
-    pub enum ParseIntError {
-        NotInt(Span),
-        Empty(Span),
+    trait Spanned {
+        fn span(&self) -> Span;
     }
 
-    impl ParseIntError {
-        fn span(&self) -> Span {
-            match self {
-                ParseIntError::NotInt(span) => span.to_owned(),
-                ParseIntError::Empty(span) => span.to_owned(),
-            }
+    struct SynError {
+        inner: syn::Error,
+    }
+
+    impl<T: Spanned + ::core::fmt::Display> From<T> for SynError {
+        fn from(value: T) -> Self {
+            Self {inner: syn::Error::new(value.span(), value.to_string())}
         }
     }
 
-    impl core::fmt::Display for ParseIntError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseIntError::NotInt(_) => write!(f, "expected an integer"),
-                ParseIntError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
+    impl From<SynError> for syn::Error {
+        fn from(value: SynError) -> Self {
+            value.inner
         }
     }
 
-    impl core::error::Error for ParseIntError {}
+    macro_rules! _last_expr {
+        ($first:expr, $($tail:expr),*) => {_last_expr!($($tail)*)};
+        ($last:expr) => {$last};
+    }
 
-    impl From<ParseIntError> for syn::Error {
-        fn from(value: ParseIntError) -> Self {
-            match value {
-                ParseIntError::NotInt(span) | ParseIntError::Empty(span) => {
-                    syn::Error::new(span, value)
+    macro_rules! _last_tt {
+        ($first:tt, $($tail:tt),*) => {_last_tt!($($tail)*)};
+        ($last:tt) => {$last};
+    }
+
+    macro_rules! declare_parse_error {
+        {$vis:vis enum $type:ident { $($(#[display($($display:expr),+)])?$(#[span=$span:expr])? $item:ident($($(#[var=$elem_var:ident])?$elems:ty),*)),* $(,)? }} => {
+            #[derive(Debug)]
+            $vis enum $type {
+                $(
+                    $item($($elems),*),
+                )*
+            }
+            impl Spanned for $type {
+                #[allow(unused_variables)]
+                fn span(&self) -> Span {
+                    match self {
+                    $(
+                        $type::$item($(_last_tt!(span$(,$elem_var)?)),*) => _last_expr!({span.to_owned()} $(,{$span})?)
+                    ),*
+                    }
                 }
             }
+
+            impl ::core::fmt::Display for $type {
+                fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+                    match self {
+                    $(
+                        $type::$item($(_last_tt!(_$(,$elem_var)?)),*) => {_last_expr!({$(::core::fmt::Display::fmt(_last_tt!(_$(,$elem_var)?), f));*} $(,write!(f, $($display),+))?)}
+                    ),*
+                    }
+                }
+            }
+
+            impl core::error::Error for $type {}
+
+            impl From<$type> for syn::Error {
+                fn from(value: $type) -> Self {
+                    SynError::from(value).into()
+                }
+            }
+        };
+    }
+
+    declare_parse_error!{
+        pub enum ParseIntError {
+            #[display("expected an integer")]
+            NotInt(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -60,39 +102,12 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseFloatError {
-        NotFloat(Span),
-        Empty(Span),
-    }
-
-    impl ParseFloatError {
-        fn span(&self) -> Span {
-            match self {
-                ParseFloatError::NotFloat(span) => span.to_owned(),
-                ParseFloatError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseFloatError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseFloatError::NotFloat(_) => write!(f, "expected a float"),
-                ParseFloatError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseFloatError {}
-
-    impl From<ParseFloatError> for syn::Error {
-        fn from(value: ParseFloatError) -> Self {
-            match value {
-                ParseFloatError::NotFloat(span) | ParseFloatError::Empty(span) => {
-                    syn::Error::new(span, value)
-                }
-            }
+    declare_parse_error!{
+        pub enum ParseFloatError {
+            #[display("expected a float")]
+            NotFloat(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -109,45 +124,14 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseSignError {
-        // Case where there is a punctuation, but it not either of '+' or '-'.
-        UnknownPunct(Span, char),
-        // Case where we have the right punctuation ('+' or '-'), but there is no following token.
-        MissingNumber(Span),
-    }
-
-    impl ParseSignError {
-        fn span(&self) -> Span {
-            match self {
-                ParseSignError::UnknownPunct(span, _) => span.to_owned(),
-                ParseSignError::MissingNumber(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseSignError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseSignError::MissingNumber(_) => {
-                    write!(f, "expected a number literal after the sign")
-                }
-                ParseSignError::UnknownPunct(_, punct) => {
-                    write!(f, "expected '+' or '-' before the number, got '{}'", punct)
-                }
-            }
-        }
-    }
-
-    impl core::error::Error for ParseSignError {}
-
-    impl From<ParseSignError> for syn::Error {
-        fn from(value: ParseSignError) -> Self {
-            match value {
-                ParseSignError::MissingNumber(span) | ParseSignError::UnknownPunct(span, _) => {
-                    syn::Error::new(span, value)
-                }
-            }
+    declare_parse_error!{
+        pub enum ParseSignError {
+            // Case where there is a punctuation, but it not either of '+' or '-'.
+            #[display("expected '+' or '-' before the number, got '{}'", punct)]
+            UnknownPunct(Span, #[var=punct] char),
+            // Case where we have the right punctuation ('+' or '-'), but there is no following token.
+            #[display("expected a number literal after the sign")]
+            MissingNumber(Span),
         }
     }
 
@@ -170,48 +154,16 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseRationalError {
-        ParseSignError(ParseSignError),
-        ParseIntError(ParseIntError),
-        MissingDenominator(Span),
-        Empty(Span),
-    }
-
-    impl ParseRationalError {
-        fn span(&self) -> Span {
-            match self {
-                ParseRationalError::ParseSignError(err) => err.span(),
-                ParseRationalError::ParseIntError(err) => err.span(),
-                ParseRationalError::MissingDenominator(span) => span.to_owned(),
-                ParseRationalError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseRationalError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseRationalError::ParseSignError(err) => core::fmt::Display::fmt(&err, f),
-                ParseRationalError::ParseIntError(err) => core::fmt::Display::fmt(&err, f),
-                ParseRationalError::MissingDenominator(_) => write!(f, "missing denominator"),
-                ParseRationalError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseRationalError {}
-
-    impl From<ParseRationalError> for syn::Error {
-        fn from(value: ParseRationalError) -> Self {
-            match &value {
-                ParseRationalError::ParseSignError(err) => syn::Error::new(err.span(), value),
-                ParseRationalError::ParseIntError(err) => syn::Error::new(err.span(), value),
-                ParseRationalError::MissingDenominator(span) => {
-                    syn::Error::new(span.to_owned(), value)
-                }
-                ParseRationalError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseRationalError {
+            #[span=err.span()]
+            ParseSignError(#[var=err] ParseSignError),
+            #[span=err.span()]
+            ParseIntError(#[var=err] ParseIntError),
+            #[display("missing denominator")]
+            MissingDenominator(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -261,46 +213,16 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseRealError {
-        ParseSignError(ParseSignError),
-        ParseRationalError(ParseRationalError),
-        NotReal(Span),
-        Empty(Span),
-    }
-
-    impl ParseRealError {
-        fn span(&self) -> Span {
-            match self {
-                ParseRealError::ParseSignError(err) => err.span(),
-                ParseRealError::ParseRationalError(err) => err.span(),
-                ParseRealError::NotReal(span) => span.to_owned(),
-                ParseRealError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseRealError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseRealError::ParseSignError(err) => core::fmt::Display::fmt(&err, f),
-                ParseRealError::ParseRationalError(err) => core::fmt::Display::fmt(&err, f),
-                ParseRealError::NotReal(_) => write!(f, "expected real literal"),
-                ParseRealError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseRealError {}
-
-    impl From<ParseRealError> for syn::Error {
-        fn from(value: ParseRealError) -> Self {
-            match &value {
-                ParseRealError::ParseSignError(err) => syn::Error::new(err.span(), value),
-                ParseRealError::ParseRationalError(err) => syn::Error::new(err.span(), value),
-                ParseRealError::NotReal(span) => syn::Error::new(span.to_owned(), value),
-                ParseRealError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseRealError {
+            #[span=err.span()]
+            ParseSignError(#[var=err] ParseSignError),
+            #[span=err.span()]
+            ParseRationalError(#[var=err] ParseRationalError),
+            #[display("expected real literal")]
+            NotReal(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -353,67 +275,22 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseComplexError {
-        ParseSignError(ParseSignError),
-        ParseRationalError(ParseRationalError),
-        MissingParentheses(Span),
-        DifferentTypes(Span),
-        NoRealOrImaginary(Span),
-        NotComplex(Span),
-        Empty(Span),
-    }
-
-    impl ParseComplexError {
-        fn span(&self) -> Span {
-            match self {
-                ParseComplexError::ParseSignError(err) => err.span(),
-                ParseComplexError::ParseRationalError(err) => err.span(),
-                ParseComplexError::MissingParentheses(span) => span.to_owned(),
-                ParseComplexError::DifferentTypes(span) => span.to_owned(),
-                ParseComplexError::NoRealOrImaginary(span) => span.to_owned(),
-                ParseComplexError::NotComplex(span) => span.to_owned(),
-                ParseComplexError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseComplexError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseComplexError::ParseSignError(err) => core::fmt::Display::fmt(&err, f),
-                ParseComplexError::ParseRationalError(err) => core::fmt::Display::fmt(&err, f),
-                ParseComplexError::MissingParentheses(_) => write!(f, "expected '('"),
-                ParseComplexError::DifferentTypes(_) => write!(
-                    f,
-                    "expected real part and imaginary part to be of the same type"
-                ),
-                ParseComplexError::NoRealOrImaginary(_) => {
-                    write!(f, "expected real and imaginary values")
-                }
-                ParseComplexError::NotComplex(_) => write!(f, "expected complex literal"),
-                ParseComplexError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseComplexError {}
-
-    impl From<ParseComplexError> for syn::Error {
-        fn from(value: ParseComplexError) -> Self {
-            match &value {
-                ParseComplexError::ParseSignError(err) => syn::Error::new(err.span(), value),
-                ParseComplexError::ParseRationalError(err) => syn::Error::new(err.span(), value),
-                ParseComplexError::MissingParentheses(span) => {
-                    syn::Error::new(span.to_owned(), value)
-                }
-                ParseComplexError::DifferentTypes(span) => syn::Error::new(span.to_owned(), value),
-                ParseComplexError::NoRealOrImaginary(span) => {
-                    syn::Error::new(span.to_owned(), value)
-                }
-                ParseComplexError::NotComplex(span) => syn::Error::new(span.to_owned(), value),
-                ParseComplexError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseComplexError {
+            #[span=err.span()]
+            ParseSignError(#[var=err] ParseSignError),
+            #[span=err.span()]
+            ParseRationalError(#[var=err] ParseRationalError),
+            #[display("expected '('")]
+            MissingParentheses(Span),
+            #[display("expected real part and imaginary part to be of the same type")]
+            DifferentTypes(Span),
+            #[display("expected real and imaginary values")]
+            NoRealOrImaginary(Span),
+            #[display("expected complex literal")]
+            NotComplex(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -496,55 +373,25 @@ pub(self) mod _inner {
             } else {
                 Err(ParseComplexError::MissingParentheses(next.span()))
             }
-        } else {
+        } else if input.eof() {
             Err(ParseComplexError::Empty(input.span()))
+        } else {
+            Err(ParseComplexError::NotComplex(input.span()))
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseNumberError {
-        ParseSignError(ParseSignError),
-        ParseRationalError(ParseRationalError),
-        ParseComplexError(ParseComplexError),
-        NotNumber(Span),
-        Empty(Span),
-    }
-
-    impl ParseNumberError {
-        fn span(&self) -> Span {
-            match self {
-                ParseNumberError::ParseSignError(err) => err.span(),
-                ParseNumberError::ParseRationalError(err) => err.span(),
-                ParseNumberError::ParseComplexError(err) => err.span(),
-                ParseNumberError::NotNumber(span) => span.to_owned(),
-                ParseNumberError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseNumberError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseNumberError::ParseSignError(err) => core::fmt::Display::fmt(&err, f),
-                ParseNumberError::ParseRationalError(err) => core::fmt::Display::fmt(&err, f),
-                ParseNumberError::ParseComplexError(err) => core::fmt::Display::fmt(&err, f),
-                ParseNumberError::NotNumber(_) => write!(f, "expected number literal"),
-                ParseNumberError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseNumberError {}
-
-    impl From<ParseNumberError> for syn::Error {
-        fn from(value: ParseNumberError) -> Self {
-            match &value {
-                ParseNumberError::ParseSignError(err) => syn::Error::new(err.span(), value),
-                ParseNumberError::ParseRationalError(err) => syn::Error::new(err.span(), value),
-                ParseNumberError::ParseComplexError(err) => syn::Error::new(err.span(), value),
-                ParseNumberError::NotNumber(span) => syn::Error::new(span.to_owned(), value),
-                ParseNumberError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseNumberError {
+            #[span=err.span()]
+            ParseSignError(#[var=err] ParseSignError),
+            #[span=err.span()]
+            ParseRationalError(#[var=err] ParseRationalError),
+            #[span=err.span()]
+            ParseComplexError(#[var=err] ParseComplexError),
+            #[display("expected number literal")]
+            NotNumber(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -583,38 +430,12 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseSymbolError {
-        NotSymbol(Span),
-        Empty(Span),
-    }
-
-    impl ParseSymbolError {
-        fn span(&self) -> Span {
-            match self {
-                ParseSymbolError::NotSymbol(span) => span.to_owned(),
-                ParseSymbolError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseSymbolError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseSymbolError::NotSymbol(_) => write!(f, "expected symbol"),
-                ParseSymbolError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseSymbolError {}
-
-    impl From<ParseSymbolError> for syn::Error {
-        fn from(value: ParseSymbolError) -> Self {
-            match &value {
-                ParseSymbolError::NotSymbol(span) => syn::Error::new(span.to_owned(), value),
-                ParseSymbolError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseSymbolError {
+            #[display("expected symbol")]
+            NotSymbol(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -630,42 +451,14 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug)]
-    pub enum ParseTokenError {
-        ParseNumberError(ParseNumberError),
-        NotToken(Span),
-        Empty(Span),
-    }
-
-    impl ParseTokenError {
-        fn span(&self) -> Span {
-            match self {
-                ParseTokenError::ParseNumberError(err) => err.span(),
-                ParseTokenError::NotToken(span) => span.to_owned(),
-                ParseTokenError::Empty(span) => span.to_owned(),
-            }
-        }
-    }
-
-    impl core::fmt::Display for ParseTokenError {
-        fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-            match self {
-                ParseTokenError::ParseNumberError(err) => core::fmt::Display::fmt(&err, f),
-                ParseTokenError::NotToken(_) => write!(f, "expected crisp token"),
-                ParseTokenError::Empty(_) => write!(f, "unexpectedly reached end of input"),
-            }
-        }
-    }
-
-    impl core::error::Error for ParseTokenError {}
-
-    impl From<ParseTokenError> for syn::Error {
-        fn from(value: ParseTokenError) -> Self {
-            match &value {
-                ParseTokenError::ParseNumberError(err) => syn::Error::new(err.span(), value),
-                ParseTokenError::NotToken(span) => syn::Error::new(span.to_owned(), value),
-                ParseTokenError::Empty(span) => syn::Error::new(span.to_owned(), value),
-            }
+    declare_parse_error! {
+        pub enum ParseTokenError {
+            #[span=err.span()]
+            ParseNumberError(#[var=err] ParseNumberError),
+            #[display("expected crisp token")]
+            NotToken(Span),
+            #[display("unexpectedly reached end of input")]
+            Empty(Span),
         }
     }
 
@@ -936,6 +729,7 @@ pub enum CrispToken {
 
 impl Parse for CrispToken {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        println!("{:?}", input);
         input.step(|cursor| check_token(cursor).map_err(|err| err.into()))
     }
 }
@@ -950,7 +744,6 @@ impl ToTokens for CrispToken {
                 symbol.to_tokens(tokens);
             }
         }
-        println!("{}", tokens);
     }
 }
 

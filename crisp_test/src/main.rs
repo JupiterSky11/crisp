@@ -16,7 +16,10 @@ fn main() {
     println!("{}", type_name_of_val(&G));
 
     // A rational has to be two integers
-    let num = crisp_macro::crisp_token!{#C(2/1 2/3)};
+    let num = crisp_macro::crisp_token!{#C(2/1 0/1)};
+    println!("{}", num);
+    let x = crisp_macro::crisp_token! {1};
+    println!("{}", x);
 }
 
 #[cfg(test)]
@@ -27,5 +30,6 @@ mod tests {
         let x = crisp_macro::crisp_token! {#C(0.1 -0.2)};
         let G = crisp_macro::crisp_token! {+999999999999999999999999999999999999999999000000000000088888888888888888888888888888888888888888888888888888888999999999999999999999999};
         let G = crisp_macro::crisp_token! {+9.99999999999999999999999999999777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777777666666666666666666666777777777777777777777e+100000000};
+        let x = crisp_macro::crisp_token! {1};
     }
 }
