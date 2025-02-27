@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro2::Ident;
 use quote::TokenStreamExt;
 use syn::spanned::Spanned;
-use syn::{Data, DataEnum, DeriveInput};
+use syn::{Data, DataEnum, DeriveInput, Type};
 
 fn gen_impl_spanned(derive_input: &DeriveInput, enum_data: &DataEnum) -> proc_macro2::TokenStream {
     let name = &derive_input.ident;
@@ -13,16 +13,34 @@ fn gen_impl_spanned(derive_input: &DeriveInput, enum_data: &DataEnum) -> proc_ma
     let mut match_body = proc_macro2::TokenStream::new();
     for variant in &enum_data.variants {
         if variant.fields.is_empty() {
-            panic!("{}", syn::Error::new(variant.span(), "expecting at least one field"));
+            panic!(
+                "{}",
+                syn::Error::new(variant.span(), "expecting at least one field")
+            );
         }
-        let (idx, span_field) = if let Some((idx, span_field)) = variant.fields.iter().enumerate()
-            .find(|(_, field)| field.attrs.iter()
-                .filter_map(|attr| attr.meta.require_path_only().ok())
-                .filter_map(|meta| if meta.segments.len() == 1 { meta.segments.last() } else { None })
-                .any(|segment| segment.ident == "span")) {
+        let (idx, span_field) = if let Some((idx, span_field)) =
+            variant.fields.iter().enumerate().find(|(_, field)| {
+                field
+                    .attrs
+                    .iter()
+                    .filter_map(|attr| attr.meta.require_path_only().ok())
+                    .filter_map(|meta| {
+                        if meta.segments.len() == 1 {
+                            meta.segments.last()
+                        } else {
+                            None
+                        }
+                    })
+                    .any(|segment| segment.ident == "span")
+            }) {
             (idx, span_field)
         } else {
-            variant.fields.iter().enumerate().next().expect("expecting at least one field")
+            variant
+                .fields
+                .iter()
+                .enumerate()
+                .next()
+                .expect("expecting at least one field")
         };
         let variant_name = &variant.ident;
         let mut fields_body = proc_macro2::TokenStream::new();
@@ -35,8 +53,18 @@ fn gen_impl_spanned(derive_input: &DeriveInput, enum_data: &DataEnum) -> proc_ma
             }
         }
         let span_field_name = Ident::new(&format!("_field_{}", idx), span_field.span());
+        let mut body = proc_macro2::TokenStream::new();
+        if let Type::Path(path) = &span_field.ty {
+            if path.path.segments.last().unwrap().ident == "Span" {
+                body.append_all(quote::quote! {#span_field_name.clone()});
+            } else {
+                body.append_all(quote::quote! {#span_field_name.into()});
+            }
+        } else {
+            body.append_all(quote::quote! {#span_field_name.into()});
+        }
         match_body.append_all(quote::quote! {
-            #name::#variant_name(#fields_body) => {#span_field_name.clone().into()}
+            #name::#variant_name(#fields_body) => {#body}
         });
     }
     quote::quote! {
@@ -71,6 +99,13 @@ fn impl_declare_parser_error(derive_input: DeriveInput) -> proc_macro2::TokenStr
         #[automatically_derived]
         impl From<#name> for ::proc_macro2::Span {
             fn from(value: #name) -> Self {
+                value.span()
+            }
+        }
+
+        #[automatically_derived]
+        impl From<&#name> for ::proc_macro2::Span {
+            fn from(value: &#name) -> Self {
                 value.span()
             }
         }

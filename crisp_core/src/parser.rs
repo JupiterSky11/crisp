@@ -8,10 +8,10 @@ pub(self) mod _inner {
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
     use core::fmt::Debug;
     use core::ops::Deref;
+    use crisp_core_macro::CrispParserError;
     use proc_macro2::{Delimiter, Span, TokenTree};
     use syn::{LitFloat, LitInt};
     use thiserror::Error;
-    use crisp_core_macro::CrispParserError;
 
     trait Spanned {
         fn span(&self) -> ::proc_macro2::Span;
@@ -21,9 +21,11 @@ pub(self) mod _inner {
         inner: syn::Error,
     }
 
-    impl<T: self::Spanned + ::core::error::Error> From<T> for SynError {
+    impl<T: self::Spanned + ::core::fmt::Display> From<T> for SynError {
         fn from(value: T) -> Self {
-            Self {inner: syn::Error::new(value.span(), value.to_string())}
+            Self {
+                inner: syn::Error::new(value.span(), value.to_string()),
+            }
         }
     }
 
@@ -33,7 +35,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseIntError {
         #[error("expected an integer")]
         NotInt(Span),
@@ -54,7 +56,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseFloatError {
         #[error("expected a float")]
         NotFloat(Span),
@@ -75,7 +77,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseSignError {
         // Case where there is a punctuation, but it not either of '+' or '-'.
         #[error("expected '+' or '-' before the number, got '{1}'")]
@@ -104,7 +106,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseRationalError {
         #[error("{0}")]
         ParseSignError(#[from] ParseSignError),
@@ -162,7 +164,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseRealError {
         #[error("{0}")]
         ParseSignError(#[from] ParseSignError),
@@ -223,7 +225,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseComplexError {
         #[error("{0}")]
         ParseSignError(#[from] ParseSignError),
@@ -268,7 +270,9 @@ pub(self) mod _inner {
             };
             if let Some((inner, inner_span, next2)) = next.group(Delimiter::Parenthesis) {
                 if inner.eof() {
-                    return Err(ParseComplexError::NoRealOrImaginary(syn::spanned::Spanned::span(&inner_span)));
+                    return Err(ParseComplexError::NoRealOrImaginary(
+                        syn::spanned::Spanned::span(&inner_span),
+                    ));
                 }
                 let (real, inner2) = check_real(&inner)?;
                 if inner2.eof() {
@@ -327,7 +331,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseNumberError {
         #[error("{0}")]
         ParseSignError(#[from] ParseSignError),
@@ -376,7 +380,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseSymbolError {
         #[error("expected symbol")]
         NotSymbol(Span),
@@ -396,7 +400,7 @@ pub(self) mod _inner {
         }
     }
 
-    #[derive(Debug, Clone, Error, CrispParserError)]
+    #[derive(Debug, Error, CrispParserError)]
     pub enum ParseTokenError {
         #[error("{0}")]
         ParseNumberError(#[from] ParseNumberError),

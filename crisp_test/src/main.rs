@@ -15,7 +15,7 @@ fn main() {
     println!("{}", type_name_of_val(&G));
 
     // A rational has to be two integers
-    let num = crisp_macro::crisp_token!{#C(2/1 0/1)};
+    let num = crisp_macro::crisp_token! {#C(2/1 0/1)};
     println!("{}", num);
     let x = crisp_macro::crisp_token! {1};
     println!("{}", x);
