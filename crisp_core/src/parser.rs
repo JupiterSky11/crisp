@@ -6,20 +6,22 @@ use syn::{LitFloat, LitInt};
 
 pub(self) mod _inner {
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
-    use core::fmt::{Debug, Formatter};
+    use core::fmt::Debug;
     use core::ops::Deref;
     use proc_macro2::{Delimiter, Span, TokenTree};
     use syn::{LitFloat, LitInt};
+    use thiserror::Error;
+    use crisp_core_macro::CrispParserError;
 
     trait Spanned {
-        fn span(&self) -> Span;
+        fn span(&self) -> ::proc_macro2::Span;
     }
 
     struct SynError {
         inner: syn::Error,
     }
 
-    impl<T: Spanned + ::core::fmt::Display> From<T> for SynError {
+    impl<T: self::Spanned + ::core::error::Error> From<T> for SynError {
         fn from(value: T) -> Self {
             Self {inner: syn::Error::new(value.span(), value.to_string())}
         }
@@ -31,62 +33,12 @@ pub(self) mod _inner {
         }
     }
 
-    macro_rules! _last_expr {
-        ($first:expr, $($tail:expr),*) => {_last_expr!($($tail)*)};
-        ($last:expr) => {$last};
-    }
-
-    macro_rules! _last_tt {
-        ($first:tt, $($tail:tt),*) => {_last_tt!($($tail)*)};
-        ($last:tt) => {$last};
-    }
-
-    macro_rules! declare_parse_error {
-        {$vis:vis enum $type:ident { $($(#[display($($display:expr),+)])?$(#[span=$span:expr])? $item:ident($($(#[var=$elem_var:ident])?$elems:ty),*)),* $(,)? }} => {
-            #[derive(Debug)]
-            $vis enum $type {
-                $(
-                    $item($($elems),*),
-                )*
-            }
-            impl Spanned for $type {
-                #[allow(unused_variables)]
-                fn span(&self) -> Span {
-                    match self {
-                    $(
-                        $type::$item($(_last_tt!(span$(,$elem_var)?)),*) => _last_expr!({span.to_owned()} $(,{$span})?)
-                    ),*
-                    }
-                }
-            }
-
-            impl ::core::fmt::Display for $type {
-                fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-                    match self {
-                    $(
-                        $type::$item($(_last_tt!(_$(,$elem_var)?)),*) => {_last_expr!({$(::core::fmt::Display::fmt(_last_tt!(_$(,$elem_var)?), f));*} $(,write!(f, $($display),+))?)}
-                    ),*
-                    }
-                }
-            }
-
-            impl core::error::Error for $type {}
-
-            impl From<$type> for syn::Error {
-                fn from(value: $type) -> Self {
-                    SynError::from(value).into()
-                }
-            }
-        };
-    }
-
-    declare_parse_error!{
-        pub enum ParseIntError {
-            #[display("expected an integer")]
-            NotInt(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseIntError {
+        #[error("expected an integer")]
+        NotInt(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn parse_integer_from_token_tree(
@@ -102,13 +54,12 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error!{
-        pub enum ParseFloatError {
-            #[display("expected a float")]
-            NotFloat(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseFloatError {
+        #[error("expected a float")]
+        NotFloat(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn parse_float_from_token_tree(
@@ -124,15 +75,14 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error!{
-        pub enum ParseSignError {
-            // Case where there is a punctuation, but it not either of '+' or '-'.
-            #[display("expected '+' or '-' before the number, got '{}'", punct)]
-            UnknownPunct(Span, #[var=punct] char),
-            // Case where we have the right punctuation ('+' or '-'), but there is no following token.
-            #[display("expected a number literal after the sign")]
-            MissingNumber(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseSignError {
+        // Case where there is a punctuation, but it not either of '+' or '-'.
+        #[error("expected '+' or '-' before the number, got '{1}'")]
+        UnknownPunct(Span, char),
+        // Case where we have the right punctuation ('+' or '-'), but there is no following token.
+        #[error("expected a number literal after the sign")]
+        MissingNumber(Span),
     }
 
     pub fn parse_negative(
@@ -154,17 +104,16 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseRationalError {
-            #[span=err.span()]
-            ParseSignError(#[var=err] ParseSignError),
-            #[span=err.span()]
-            ParseIntError(#[var=err] ParseIntError),
-            #[display("missing denominator")]
-            MissingDenominator(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseRationalError {
+        #[error("{0}")]
+        ParseSignError(#[from] ParseSignError),
+        #[error("{0}")]
+        ParseIntError(#[from] ParseIntError),
+        #[error("missing denominator")]
+        MissingDenominator(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn check_rational<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
@@ -213,17 +162,16 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseRealError {
-            #[span=err.span()]
-            ParseSignError(#[var=err] ParseSignError),
-            #[span=err.span()]
-            ParseRationalError(#[var=err] ParseRationalError),
-            #[display("expected real literal")]
-            NotReal(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseRealError {
+        #[error("{0}")]
+        ParseSignError(#[from] ParseSignError),
+        #[error("{0}")]
+        ParseRationalError(#[from] ParseRationalError),
+        #[error("expected real literal")]
+        NotReal(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn check_real<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
@@ -275,23 +223,22 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseComplexError {
-            #[span=err.span()]
-            ParseSignError(#[var=err] ParseSignError),
-            #[span=err.span()]
-            ParseRationalError(#[var=err] ParseRationalError),
-            #[display("expected '('")]
-            MissingParentheses(Span),
-            #[display("expected real part and imaginary part to be of the same type")]
-            DifferentTypes(Span),
-            #[display("expected real and imaginary values")]
-            NoRealOrImaginary(Span),
-            #[display("expected complex literal")]
-            NotComplex(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseComplexError {
+        #[error("{0}")]
+        ParseSignError(#[from] ParseSignError),
+        #[error("{0}")]
+        ParseRationalError(#[from] ParseRationalError),
+        #[error("expected '('")]
+        MissingParentheses(Span),
+        #[error("expected real part and imaginary part to be of the same type")]
+        DifferentTypes(Span),
+        #[error("expected real and imaginary values")]
+        NoRealOrImaginary(Span),
+        #[error("expected complex literal")]
+        NotComplex(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     impl From<ParseRealError> for ParseComplexError {
@@ -380,19 +327,18 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseNumberError {
-            #[span=err.span()]
-            ParseSignError(#[var=err] ParseSignError),
-            #[span=err.span()]
-            ParseRationalError(#[var=err] ParseRationalError),
-            #[span=err.span()]
-            ParseComplexError(#[var=err] ParseComplexError),
-            #[display("expected number literal")]
-            NotNumber(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseNumberError {
+        #[error("{0}")]
+        ParseSignError(#[from] ParseSignError),
+        #[error("{0}")]
+        ParseRationalError(#[from] ParseRationalError),
+        #[error("{0}")]
+        ParseComplexError(#[from] ParseComplexError),
+        #[error("expected number literal")]
+        NotNumber(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn check_number<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
@@ -430,13 +376,12 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseSymbolError {
-            #[display("expected symbol")]
-            NotSymbol(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseSymbolError {
+        #[error("expected symbol")]
+        NotSymbol(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn check_symbol<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(
@@ -451,15 +396,14 @@ pub(self) mod _inner {
         }
     }
 
-    declare_parse_error! {
-        pub enum ParseTokenError {
-            #[span=err.span()]
-            ParseNumberError(#[var=err] ParseNumberError),
-            #[display("expected crisp token")]
-            NotToken(Span),
-            #[display("unexpectedly reached end of input")]
-            Empty(Span),
-        }
+    #[derive(Debug, Clone, Error, CrispParserError)]
+    pub enum ParseTokenError {
+        #[error("{0}")]
+        ParseNumberError(#[from] ParseNumberError),
+        #[error("expected crisp token")]
+        NotToken(Span),
+        #[error("unexpectedly reached end of input")]
+        Empty(Span),
     }
 
     pub fn check_token<'a, C: Deref<Target = syn::buffer::Cursor<'a>>>(

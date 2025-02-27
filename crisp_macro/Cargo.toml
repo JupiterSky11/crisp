@@ -7,7 +7,6 @@ edition = "2021"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "^1.0"
 syn = { version = "^2.0", features = ["parsing", "extra-traits"] } # Use "extra-traits" feature when debugging macros. (increases compile time a lot)
 quote = "^1.0"
 crisp_core = { path = "../crisp_core" }
