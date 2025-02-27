@@ -112,7 +112,7 @@ fn impl_declare_parser_error(derive_input: DeriveInput) -> proc_macro2::TokenStr
     }
 }
 
-#[proc_macro_derive(CrispParserError, attributes(var, span))]
+#[proc_macro_derive(CrispParserError, attributes(span))]
 pub fn declare_parser_error(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     impl_declare_parser_error(syn::parse_macro_input!(input)).into()
 }

@@ -721,6 +721,9 @@ mod test {
     #[test]
     fn can_parse_complex() {
         syn::parse_str::<CrispToken>("#C(3.14 -1.0)").expect("Not a number");
+        syn::parse_str::<CrispToken>("#C(-2 1)").expect("Not a number");
+        syn::parse_str::<CrispToken>("#C(-5/9 -1/3)").expect("Not a number");
+        syn::parse_str::<CrispToken>("#C(2e3 27e10)").expect("Not a number");
     }
 
     #[test]
