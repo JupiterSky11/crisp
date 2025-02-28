@@ -5,7 +5,7 @@ resolver = "2"
 [package]
 name = "crisp"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 authors = ["jupitersky", "kipcode66"]
 publish = true
 categories = ["development-tools", "parser-implementations"]
