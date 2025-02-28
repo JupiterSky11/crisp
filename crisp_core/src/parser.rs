@@ -1,6 +1,6 @@
 use crate::parser::_inner::*;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote};
 use syn::parse::{Parse, ParseStream};
 use syn::{LitFloat, LitInt};
 
@@ -479,9 +479,9 @@ impl ToTokens for Rational {
             Rational::Integer { number, .. } => {
                 let formatted = number.to_string();
                 if is_negative {
-                    tokens.append_all(quote! {::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap())})
+                    tokens.append_all(quote! {::core::ops::Neg::neg(<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap())})
                 } else {
-                    tokens.append_all(quote! {<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap()})
+                    tokens.append_all(quote! {<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted).unwrap()})
                 }
             }
             Rational::Ratio {
@@ -492,9 +492,9 @@ impl ToTokens for Rational {
                 let formatted_numerator = numerator.to_string();
                 let formatted_denominator = denominator.to_string();
                 if is_negative {
-                    tokens.append_all(quote! {::crisp_core::num::BigRational::new(::core::ops::Neg::neg(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap()),<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
+                    tokens.append_all(quote! {::crisp::num::BigRational::new(::core::ops::Neg::neg(<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap()),<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
                 } else {
-                    tokens.append_all(quote! {::crisp_core::num::BigRational::new(<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap(),<::crisp_core::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
+                    tokens.append_all(quote! {::crisp::num::BigRational::new(<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted_numerator).unwrap(),<::crisp::num::BigInt as ::core::str::FromStr>::from_str(#formatted_denominator).unwrap())});
                 }
             }
         };
@@ -536,7 +536,7 @@ impl ToTokens for Real {
         match self {
             Real::Float { number, .. } => {
                 let formatted = format!("{}{}", if is_negative { "-" } else { "" }, number);
-                tokens.append_all(quote! {<::crisp_core::num::BigFloat as ::core::str::FromStr>::from_str(#formatted).unwrap()});
+                tokens.append_all(quote! {<::crisp::num::BigFloat as ::core::str::FromStr>::from_str(#formatted).unwrap()});
             }
             Real::Rational(rational) => tokens.append_all(quote! {#rational}),
         };
@@ -583,18 +583,20 @@ impl ToTokens for Complex {
                 let formatted_imaginary = imaginary.to_string();
                 let mut token_stream_real = TokenStream::new();
                 let mut token_stream_imaginary = TokenStream::new();
-                token_stream_real.append_all(quote! {<::crisp_core::num::BigFloat as ::core::str::FromStr>::from_str(#formatted_real).unwrap()});
-                token_stream_imaginary.append_all(quote! {<::crisp_core::num::BigFloat as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap()});
+                token_stream_real.append_all(quote! {<::crisp::num::BigFloat as ::core::str::FromStr>::from_str(#formatted_real).unwrap()});
+                token_stream_imaginary.append_all(quote! {<::crisp::num::BigFloat as ::core::str::FromStr>::from_str(#formatted_imaginary).unwrap()});
                 if let Some(true) = real_negative {
                     token_stream_real.append_all(quote! {.neg()});
                 }
                 if let Some(true) = imaginary_negative {
                     token_stream_imaginary.append_all(quote! {.neg()});
                 }
-                tokens.append_all(quote! {::crisp_core::num::Complex::new(#token_stream_real,#token_stream_imaginary)})
+                tokens.append_all(
+                    quote! {::crisp::num::Complex::new(#token_stream_real,#token_stream_imaginary)},
+                )
             }
             Complex::Rational { real, imaginary } => {
-                tokens.append_all(quote! {::crisp_core::num::Complex::new(#real,#imaginary)})
+                tokens.append_all(quote! {::crisp::num::Complex::new(#real,#imaginary)})
             }
         }
     }

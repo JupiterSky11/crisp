@@ -1,7 +1,10 @@
 [package]
 name = "crisp_macro"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+authors = ["jupitersky", "kipcode66"]
+publish = true
+categories = ["development-tools", "parser-implementations"]
 
 [lib]
 proc-macro = true

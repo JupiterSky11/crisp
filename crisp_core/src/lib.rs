@@ -3,9 +3,8 @@ use std::fmt::Debug;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    parenthesized,
+    LitInt, parenthesized,
     parse::{Parse, ParseStream},
-    LitInt,
 };
 
 pub mod interp;

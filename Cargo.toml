@@ -1,3 +1,19 @@
 [workspace]
-members = ["crisp_core", "crisp_macro", "crisp_test"]
+members = [ "crisp_core", "crisp_macro", "crisp_test"]
 resolver = "2"
+
+[package]
+name = "crisp"
+version = "0.1.0"
+edition = "2024"
+authors = ["jupitersky", "kipcode66"]
+publish = true
+categories = ["development-tools", "parser-implementations"]
+
+[dependencies]
+crisp_core = { path = "crisp_core", default-features = false }
+crisp_macro = { path = "crisp_macro" }
+
+[features]
+default = ["debug"]
+debug = ["crisp_core/debug"]
