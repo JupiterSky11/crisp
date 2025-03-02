@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crisp_core", "crisp_macro", "crisp_test"]
+members = [ "crisp_core", "crisp_macro"]
 resolver = "2"
 
 [package]
@@ -9,6 +9,12 @@ edition = "2021"
 authors = ["jupitersky", "kipcode66"]
 publish = true
 categories = ["development-tools", "parser-implementations"]
+
+[[example]]
+path = "examples/test.rs"
+bench = true
+name = "test"
+test = true
 
 [dependencies]
 crisp_core = { path = "crisp_core", default-features = false }

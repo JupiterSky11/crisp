@@ -17,7 +17,7 @@ pub fn eval(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 #[proc_macro]
-pub fn crisp_token(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn parse_token(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let x: crisp_core::parser::CrispToken =
         parse_macro_input!(input as crisp_core::parser::CrispToken);
     quote!(#x).into()

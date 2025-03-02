@@ -3,13 +3,16 @@ use std::fmt::Debug;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    LitInt, parenthesized,
+    parenthesized,
     parse::{Parse, ParseStream},
+    LitInt,
 };
 
+pub mod ast;
 pub mod interp;
 pub mod num;
 pub mod parser;
+mod private;
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 pub struct Crisp {

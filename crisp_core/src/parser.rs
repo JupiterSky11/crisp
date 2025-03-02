@@ -1,39 +1,18 @@
 use crate::parser::_inner::*;
 use proc_macro2::TokenStream;
-use quote::{ToTokens, TokenStreamExt, quote};
+use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, ParseStream};
 use syn::{LitFloat, LitInt};
 
 pub(self) mod _inner {
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
+    use crate::private::Spanned;
     use core::fmt::Debug;
     use core::ops::Deref;
     use crisp_core_macro::CrispParserError;
     use proc_macro2::{Delimiter, Span, TokenTree};
     use syn::{LitFloat, LitInt};
     use thiserror::Error;
-
-    trait Spanned {
-        fn span(&self) -> ::proc_macro2::Span;
-    }
-
-    struct SynError {
-        inner: syn::Error,
-    }
-
-    impl<T: self::Spanned + ::core::fmt::Display> From<T> for SynError {
-        fn from(value: T) -> Self {
-            Self {
-                inner: syn::Error::new(value.span(), value.to_string()),
-            }
-        }
-    }
-
-    impl From<SynError> for syn::Error {
-        fn from(value: SynError) -> Self {
-            value.inner
-        }
-    }
 
     #[derive(Debug, Error, CrispParserError)]
     pub enum ParseIntError {

@@ -69,7 +69,7 @@ fn gen_impl_spanned(derive_input: &DeriveInput, enum_data: &DataEnum) -> proc_ma
     }
     quote::quote! {
         #[automatically_derived]
-        impl self::Spanned for #name {
+        impl crate::private::Spanned for #name {
             fn span(&self) -> ::proc_macro2::Span {
                 #[allow(unused_variables, deprecated, clippy::used_underscore_binding)]
                 match self {
@@ -92,7 +92,7 @@ fn impl_declare_parser_error(derive_input: DeriveInput) -> proc_macro2::TokenStr
         #[automatically_derived]
         impl From<#name> for syn::Error {
             fn from(value: #name) -> Self {
-                SynError::from(value).into()
+                crate::private::SynError::from(value).into()
             }
         }
 
