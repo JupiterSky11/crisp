@@ -17,6 +17,9 @@ fn main() {
     println!("{}", num);
     let x = crisp::parse_token! {1};
     println!("{}", x);
+    crisp::parse_token!(x);
+    let x = crisp::parse_expr!((nil 2 (() 4 2)));
+    println!("{}", x);
 }
 
 #[cfg(test)]
@@ -30,5 +33,6 @@ mod tests {
         crisp::parse_token! {1};
         crisp::parse_token! {+0};
         crisp::parse_token! {#C(1 2)};
+        crisp::parse_expr! {(nil 2 (() 4 2))};
     }
 }

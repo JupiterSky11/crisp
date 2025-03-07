@@ -4,7 +4,7 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::parse::{Parse, ParseStream};
 use syn::{LitFloat, LitInt};
 
-pub(self) mod _inner {
+pub(crate) mod _inner {
     use crate::parser::{Complex, CrispToken, Number, Rational, Real, Symbol};
     use crate::private::Spanned;
     use core::fmt::Debug;
@@ -18,8 +18,6 @@ pub(self) mod _inner {
     pub enum ParseIntError {
         #[error("expected an integer")]
         NotInt(Span),
-        #[error("unexpectedly reached end of input")]
-        Empty(Span),
     }
 
     pub fn parse_integer_from_token_tree(
@@ -31,7 +29,7 @@ pub(self) mod _inner {
             litrs::IntegerLit::try_from(lit).or(Err(ParseIntError::NotInt(span)))?;
             Ok(LitInt::from(lit2))
         } else {
-            Err(ParseIntError::Empty(span))
+            Err(ParseIntError::NotInt(span))
         }
     }
 
@@ -39,8 +37,6 @@ pub(self) mod _inner {
     pub enum ParseFloatError {
         #[error("expected a float")]
         NotFloat(Span),
-        #[error("unexpectedly reached end of input")]
-        Empty(Span),
     }
 
     pub fn parse_float_from_token_tree(
@@ -52,7 +48,7 @@ pub(self) mod _inner {
             litrs::FloatLit::try_from(lit).or(Err(ParseFloatError::NotFloat(span)))?;
             Ok(LitFloat::from(lit2))
         } else {
-            Err(ParseFloatError::Empty(span))
+            Err(ParseFloatError::NotFloat(span))
         }
     }
 
@@ -108,7 +104,6 @@ pub(self) mod _inner {
             let numerator = match parse_integer_from_token_tree(tt, next.span()) {
                 Ok(num) => Ok(num),
                 Err(err @ ParseIntError::NotInt(_)) => Err(ParseRationalError::ParseIntError(err)),
-                Err(ParseIntError::Empty(span)) => Err(ParseRationalError::Empty(span)),
             }?;
             if let Some((punct, next2)) = next.punct() {
                 if punct.as_char() == '/' {
@@ -122,7 +117,7 @@ pub(self) mod _inner {
                                 },
                                 next3,
                             )),
-                            Err(ParseIntError::NotInt(span)) | Err(ParseIntError::Empty(span)) => {
+                            Err(ParseIntError::NotInt(span)) => {
                                 Err(ParseRationalError::MissingDenominator(span))
                             }
                         }
@@ -177,9 +172,6 @@ pub(self) mod _inner {
                         next,
                     ));
                 }
-                Err(ParseFloatError::Empty(span)) => {
-                    return Err(ParseRealError::Empty(span));
-                }
                 Err(ParseFloatError::NotFloat(_)) => {}
             }
         }
@@ -194,10 +186,7 @@ pub(self) mod _inner {
             Err(ParseRationalError::ParseIntError(ParseIntError::NotInt(span))) => {
                 Err(ParseRealError::NotReal(span))
             }
-            Err(
-                ParseRationalError::ParseIntError(ParseIntError::Empty(span))
-                | ParseRationalError::Empty(span),
-            ) => Err(ParseRealError::Empty(span)),
+            Err(ParseRationalError::Empty(span)) => Err(ParseRealError::Empty(span)),
             Err(err @ ParseRationalError::MissingDenominator(_)) => {
                 Err(ParseRealError::ParseRationalError(err))
             }
@@ -718,6 +707,11 @@ mod test {
     #[test]
     fn can_parse_big_bigfloats() {
         syn::parse_str::<CrispToken>("4.33333333333333333333333333333333333333333333333333333333333333333333333e100000000000000000000000000000000000000000000000000000000").expect("Not a number");
+    }
+
+    #[test]
+    fn can_parse_symbols() {
+        syn::parse_str::<CrispToken>("nil").expect("a symbol");
     }
 
     #[test]
