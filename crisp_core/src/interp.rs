@@ -2,6 +2,20 @@ use std::collections::HashMap;
 
 use crate::CrispType;
 
+pub struct CrispNil { }
+
+impl CrispNil {
+    pub fn new() -> CrispNil {
+        CrispNil {}
+    }
+}
+
+impl Default for CrispNil {
+    fn default() -> Self {
+        CrispNil::new()
+    }
+}
+
 pub struct GlobalContext {
     pub variables: HashMap<String, CrispType>,
 }

@@ -361,8 +361,10 @@ pub(crate) mod _inner {
     ) -> Result<(Symbol, syn::buffer::Cursor<'a>), ParseSymbolError> {
         if input.eof() {
             Err(ParseSymbolError::Empty(input.span()))
+        } else if let Some((punct, next)) = input.punct() {
+            Ok((Symbol::Punct(punct), next))
         } else if let Some((ident, next)) = input.ident() {
-            Ok((Symbol { ident }, next))
+            Ok((Symbol::Ident(ident), next))
         } else {
             Err(ParseSymbolError::NotSymbol(input.span()))
         }
@@ -609,8 +611,8 @@ impl From<Rational> for Number {
 impl ToTokens for Number {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            Number::Real(real) => tokens.append_all(quote! { #real }),
-            Number::Complex(complex) => tokens.append_all(quote! { #complex }),
+            Number::Real(real) => real.to_tokens(tokens),
+            Number::Complex(complex) => complex.to_tokens(tokens),
         }
     }
 }
@@ -619,8 +621,9 @@ impl ToTokens for Number {
 
 #[cfg_attr(feature = "debug", derive(Debug))]
 #[derive(Clone)]
-pub struct Symbol {
-    ident: syn::Ident,
+pub enum Symbol {
+    Ident(proc_macro2::Ident),
+    Punct(proc_macro2::Punct),
 }
 
 impl Parse for Symbol {
@@ -631,8 +634,10 @@ impl Parse for Symbol {
 
 impl ToTokens for Symbol {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let ident = &self.ident;
-        tokens.append(ident.clone());
+        match self {
+            Symbol::Ident(ident) => ident.to_tokens(tokens),
+            Symbol::Punct(punct) => punct.to_tokens(tokens),
+        }
     }
 }
 
@@ -655,12 +660,8 @@ impl Parse for CrispToken {
 impl ToTokens for CrispToken {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            CrispToken::Number(number) => {
-                number.to_tokens(tokens);
-            }
-            CrispToken::Symbol(symbol) => {
-                symbol.to_tokens(tokens);
-            }
+            CrispToken::Number(number) => number.to_tokens(tokens),
+            CrispToken::Symbol(symbol) => symbol.to_tokens(tokens),
         }
     }
 }

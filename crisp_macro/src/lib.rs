@@ -26,6 +26,5 @@ pub fn parse_token(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 #[proc_macro]
 pub fn parse_expr(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let x: CrispExpr = parse_macro_input!(input as CrispExpr);
-    dbg!(x);
-    quote! {0}.into()
+    quote! {#x}.into()
 }

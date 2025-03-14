@@ -1,8 +1,7 @@
-use std::io::Cursor;
-use proc_macro2::{Delimiter, TokenStream};
+use proc_macro2::TokenStream;
+use quote::{ToTokens, TokenStreamExt};
 use syn::parenthesized;
 use syn::parse::{Parse, ParseStream, Parser};
-use syn::parse::discouraged::Speculative;
 use syn::token::Paren;
 use crate::parser::CrispToken;
 
@@ -27,6 +26,16 @@ impl Parse for CrispExpr {
     }
 }
 
+impl ToTokens for CrispExpr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            CrispExpr::List(list) => list.to_tokens(tokens),
+            CrispExpr::Token(token) => token.to_tokens(tokens),
+            CrispExpr::String(string) => string.to_tokens(tokens),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CrispExprList {
     pub paren: Paren,
@@ -42,5 +51,25 @@ impl Parse for CrispExprList {
             content.push(expr);
         }
         Ok(CrispExprList { paren: Default::default(), content })
+    }
+}
+
+impl ToTokens for CrispExprList {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        if self.content.is_empty() {
+            tokens.append_all(quote::quote! {::crisp::interp::CrispNil::new()});
+        } else {
+            let mut params_body = TokenStream::new();
+            for (i, param) in self.content.iter().skip(1).enumerate() {
+                if i == 0 {
+                    params_body.extend(quote::quote! {#param});
+                } else {
+                    params_body.extend(quote::quote! {, #param});
+                }
+            }
+            let func = self.content.first().unwrap();
+            // TODO Look through the existing symbols an call the right one, otherwise just use the symbol itself 
+            tokens.append_all(quote::quote! {#func(#params_body)});
+        }
     }
 }
