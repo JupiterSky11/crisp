@@ -1,9 +1,10 @@
 use crisp_api::*;
 fn main() {
-    if let CrispType::Int(x) = eval!(+ 0 0) {
+    let foo = eval!(+ (+ 2 2) (+ -1 16));
+    if let CrispType::Int(x) = foo {
         println!("Hello, world! {}", x);
     } else {
-        println!("Hello, world!  (Crisp failure.)")
+        println!("Hello, world!  (Crisp failure.)");
     }
 }
 
@@ -20,6 +21,3 @@ mod tests {
         assert_eq!(result, 8);
     }
 }
-
-
-

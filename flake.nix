@@ -23,6 +23,7 @@
             clang
             bacon
             rust-bin.stable.latest.default
+			gitui
           ];
 
           shellHook = ''
