@@ -46,18 +46,27 @@ mod tests {
     }
 }
 
+
+
+
+
+
 fn hello_crisp() {
     let mut foo: List = vec![];
     let crisped_addition = get_crisp_function();
     foo.push(Atom { vtype: CrispType::Fn(crisped_addition) });
-    foo.push((21 as i32).convert());
-    foo.push((21 as i32).convert());
-    let bar: Atom = crispy_add(&foo[0], &foo[1]).unwrap();
+    foo.push((21 as i32).crisp());
+    foo.push((21 as i32).crisp());
+    let bar: Atom = SExpr::from_list(foo).unwrap().eval().unwrap();
     if let CrispType::Number(x) = bar.vtype { println!("{}", x) };
 }
 
+
+
+// Crisp generalization core
+
 trait Crispy {
-    fn convert(&self) -> Atom;
+    fn crisp(&self) -> Atom;
 }
 
 use std::rc::Rc;
@@ -78,17 +87,9 @@ enum CrispType {
 type List = Vec<Atom>;
 
 impl Crispy for i32 {
-    fn convert(&self) -> Atom {
+    fn crisp(&self) -> Atom {
         Atom { vtype: CrispType::Number(Rc::new(self.clone())) }
     }
-}
-
-fn crispy_add(x: &Atom, y: &Atom) -> Result<Atom, ()> {
-    if let CrispType::Number(x) = &x.vtype {
-        if let CrispType::Number(y) = &y.vtype {
-            Ok(((*x.clone() + *y.clone()) as i32).convert())
-        } else { return Err(()) }
-    } else { return Err(()) }
 }
 
 struct SExpr {
@@ -97,8 +98,8 @@ struct SExpr {
 }
 
 impl SExpr {
-    fn eval() {
-        
+    fn eval(&self) -> Result<Atom, String> {
+        self.func.call(self.args.clone())
     }
     fn from_list(list: List) -> Result<SExpr, ()> {
         if let CrispType::Fn(func) = &list[0].vtype {
@@ -113,8 +114,14 @@ impl SExpr {
 
 #[derive(Clone)]
 struct CrispFunction {
-    function: Rc<dyn Fn()>,
+    function: Rc<dyn CrispyFn>,
     signature: CrispSignature,
+}
+
+impl CrispFunction {
+    fn call(&self, args: List) -> Result<Atom, String> {
+        self.function.call(args)
+    }
 }
 
 #[derive(Clone)]
@@ -124,20 +131,32 @@ struct CrispSignature {
     output: Rc<CrispType>,
 }
 
-fn crispify_function(function: Rc<dyn Fn()>, arg_types: &List, output: &CrispType) -> CrispFunction {
-    CrispFunction {
-        function: function.clone(),
-        signature: CrispSignature {
-            builder: false,
-            args: Rc::new(arg_types.clone().to_vec()),
-            output: Rc::new(output.clone()),
-        }
+trait CrispyFn {
+    fn new() -> Self where Self: Sized;
+    fn call(&self, args: List) -> Result<Atom, String>;
+}
+
+
+
+// Test functions for manually creating Crisp functions
+
+fn get_crisp_function() -> CrispFunction {
+    CrispFunction { function: Rc::new(CrispFunctionAdd {}), signature: CrispSignature { builder: false, args: List::new().into(), output: Rc::new(CrispType::Number(Rc::new(0))) } }
+}
+
+struct CrispFunctionAdd {}
+impl CrispyFn for CrispFunctionAdd {
+    fn new() -> CrispFunctionAdd { CrispFunctionAdd {} }
+    fn call(&self, args: List) -> Result<Atom, String> {
+        if let CrispType::Number(x) = &args[0].vtype {
+            if let CrispType::Number(y) = &args[1].vtype {
+                Ok(Atom { vtype: CrispType::Number((**x + **y).into()) })
+            } else { return Err("type invalid, second argument".to_string()) }
+        } else { return Err("type invalid, first argument".to_string()) }
     }
 }
 
-fn get_crisp_function() -> CrispFunction {
-    let alist: &Vec<Atom> = &Vec::new();
-    alist.push(0.convert());
-    alist.push(0.convert());
-    crispify_function(Rc::new(crispy_add), alist, &CrispType::Number(0.into()))
-}
+
+// CrispFn trait with call(&self, List) method
+// New struct for each individual external function
+// Implements call() method to wire the args into the inputs.
