@@ -63,8 +63,9 @@ fn hello_crisp() {
 
 
 
-// Crisp generalization core
+// --- Crisp generalization core
 
+// This guarantees a given external type has a Crisp equivalent
 trait Crispy {
     fn crisp(&self) -> Atom;
 }
@@ -72,19 +73,17 @@ trait Crispy {
 use std::rc::Rc;
 #[derive(Clone)]
 struct Atom {
-    // data: Rc<dyn Crispy>,
     vtype: CrispType,
 }
 
 type Number = Rc<i32>;
+type List = Vec<Atom>;
 #[derive(Clone)]
 enum CrispType {
     List(List),
     Fn(CrispFunction),
     Number(Number),
 }
-
-type List = Vec<Atom>;
 
 impl Crispy for i32 {
     fn crisp(&self) -> Atom {
@@ -112,6 +111,8 @@ impl SExpr {
     }
 }
 
+// This will be used in the future to dynamically check the signature before passing a list of
+// arguments to be called by the specified function.
 #[derive(Clone)]
 struct CrispFunction {
     function: Rc<dyn CrispyFn>,
@@ -124,6 +125,7 @@ impl CrispFunction {
     }
 }
 
+// Same deal as above, basically useless for the time being.
 #[derive(Clone)]
 struct CrispSignature {
     builder: bool,
@@ -131,6 +133,7 @@ struct CrispSignature {
     output: Rc<CrispType>,
 }
 
+// This guarantees that a struct will act as a function, and has a call method.
 trait CrispyFn {
     fn new() -> Self where Self: Sized;
     fn call(&self, args: List) -> Result<Atom, String>;
@@ -138,19 +141,34 @@ trait CrispyFn {
 
 
 
-// Test functions for manually creating Crisp functions
+// --- Test functions for manually creating Crisp functions
 
+// This just creates a CrispFunction for the hello_crisp test.
 fn get_crisp_function() -> CrispFunction {
-    CrispFunction { function: Rc::new(CrispFunctionAdd {}), signature: CrispSignature { builder: false, args: List::new().into(), output: Rc::new(CrispType::Number(Rc::new(0))) } }
+    CrispFunction {
+        function: Rc::new(CrispFunctionAdd {}),
+        signature: CrispSignature {
+            builder: false,
+            args: List::new().into(),
+            output: Rc::new(CrispType::Number(Rc::new(0))),
+        }
+    }
 }
 
+// This is an example for how to implement an external function.  
+// This struct bridges a list of CrispType arguments into the function call.
+// We will need one of these for every function, and we will need a macro to generate them.
 struct CrispFunctionAdd {}
 impl CrispyFn for CrispFunctionAdd {
     fn new() -> CrispFunctionAdd { CrispFunctionAdd {} }
     fn call(&self, args: List) -> Result<Atom, String> {
         if let CrispType::Number(x) = &args[0].vtype {
             if let CrispType::Number(y) = &args[1].vtype {
-                Ok(Atom { vtype: CrispType::Number((**x + **y).into()) })
+                Ok(Atom {
+                    // Obviously here I just call the normal + operator, but this would be some
+                    // external function otherwise.
+                    vtype: CrispType::Number((**x + **y).into())
+                })
             } else { return Err("type invalid, second argument".to_string()) }
         } else { return Err("type invalid, first argument".to_string()) }
     }
