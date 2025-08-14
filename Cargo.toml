@@ -7,7 +7,7 @@ name = "crisp"
 version = "0.1.0"
 edition = "2021"
 authors = ["jupitersky", "kipcode66"]
-publish = true
+publish = false
 categories = ["development-tools", "parser-implementations"]
 
 [[example]]
