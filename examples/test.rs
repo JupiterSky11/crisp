@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use std::collections::HashMap;
+use std::i32;
 use std::{any::type_name_of_val};
 
 fn main() {
@@ -58,8 +60,8 @@ mod tests {
 fn hello_crisp() {
     let mut foo: List = vec![];
     foo.push(CrispFunctionAdd::new().atomize());
-    foo.push((21 as i32).crisp());
-    foo.push((21 as i32).crisp());
+    foo.push(Crisp_i32::new(21).atomize());
+    foo.push(Crisp_i32::new(21).atomize());
     let bar: Atom = SExpr::from_list(foo).unwrap().eval().unwrap();
     if let CrispType::Number(x) = bar.data { println!("{}", x) };
     parser::parse("eval (println \"Some day...\") (println \"We will finish Crisp.\")");
@@ -112,6 +114,7 @@ enum CrispType {
     Fn(CrispFunction),
     Number(Number),
     Symbol(String),
+    Magic(Rc<dyn CrispMagic>),
 }
 
 impl Crispy for i32 {
@@ -210,10 +213,44 @@ struct CrispSignature {
 }
 
 // This guarantees that a struct will act as a function, and has a call method.
-trait CrispyFn {
+trait CrispyFn: Atomize {
     fn new() -> Self where Self: Sized;
-    fn atomize(self) -> Atom;
     fn call(&self, args: List) -> Result<Atom, String>;
+}
+
+use std::any::Any;
+trait CrispMagic {
+    fn spellcast(&self) -> &dyn Any;
+}
+
+trait Atomize {
+    fn atomize(self) -> Atom;
+}
+
+#[derive(Clone)]
+struct Crisp_i32(i32);
+impl Crisp_i32 {
+    fn new(input: i32) -> Self {
+        Self(input)
+    }
+}
+impl Atomize for Crisp_i32 {
+    fn atomize(self) -> Atom {
+        Atom {
+            data: CrispType::Magic(Rc::new(self.clone())),
+            symbol: sym::Symbol::Struct(
+                sym::Struct {
+                    name: "i32".to_string(),
+                    traits: vec!["Add".to_string()],
+                }
+            )
+        }
+    }
+}
+impl CrispMagic for Crisp_i32 {
+    fn spellcast(&self) -> &dyn Any {
+        &self.0
+    }
 }
 
 
@@ -236,26 +273,41 @@ fn get_crisp_function(func: Rc<dyn CrispyFn>) -> CrispFunction {
 // This struct bridges a list of CrispType arguments into the function call.
 // We will need one of these for every function, and we will need a macro to generate them.
 #[derive(Clone)]
-struct CrispFunctionAdd {}
+struct CrispFunctionAdd;
 impl CrispyFn for CrispFunctionAdd {
     fn new() -> CrispFunctionAdd { CrispFunctionAdd {} }
+    fn call(&self, args: List) -> Result<Atom, String> {
+        if let CrispType::Magic(x) = &args[0].data {
+            if let CrispType::Magic(y) = &args[1].data {
+                let x: i32 = *(**x).spellcast().downcast_ref::<i32>().expect("funny");
+                let y: i32 = *(**y).spellcast().downcast_ref::<i32>().expect("funny");
+                Ok(Atom {
+                    // Obviously here I just call the normal + operator, but this would be some
+                    // external function otherwise.
+                    data: CrispType::Number((x + y).into()),
+                    symbol: sym::Symbol::Fn(sym::Fn {name: "add".to_string()}),
+                })
+            } else { return Err("type invalid, second argument".to_string()) }
+        } else { return Err("type invalid, first argument".to_string()) }
+
+        // if let CrispType::Number(x) = &args[0].data {
+        //     if let CrispType::Number(y) = &args[1].data {
+        //         Ok(Atom {
+        //             // Obviously here I just call the normal + operator, but this would be some
+        //             // external function otherwise.
+        //             data: CrispType::Number((**x + **y).into()),
+        //             symbol: sym::Symbol::Fn(sym::Fn {name: "add".to_string()}),
+        //         })
+        //     } else { return Err("type invalid, second argument".to_string()) }
+        // } else { return Err("type invalid, first argument".to_string()) }
+    }
+}
+impl Atomize for CrispFunctionAdd {
     fn atomize(self) -> Atom {
         Atom {
             data: CrispType::Fn(get_crisp_function(Rc::new(self))),
             symbol: sym::Symbol::Fn(sym::Fn { name: "add".to_string() }),
         }
-    }
-    fn call(&self, args: List) -> Result<Atom, String> {
-        if let CrispType::Number(x) = &args[0].data {
-            if let CrispType::Number(y) = &args[1].data {
-                Ok(Atom {
-                    // Obviously here I just call the normal + operator, but this would be some
-                    // external function otherwise.
-                    data: CrispType::Number((**x + **y).into()),
-                    symbol: sym::Symbol::Fn(sym::Fn {name: "add".to_string()}),
-                })
-            } else { return Err("type invalid, second argument".to_string()) }
-        } else { return Err("type invalid, first argument".to_string()) }
     }
 }
 
@@ -263,12 +315,6 @@ impl CrispyFn for CrispFunctionAdd {
 struct CrispFunctionPrintln {}
 impl CrispyFn for CrispFunctionPrintln {
     fn new() -> CrispFunctionPrintln { CrispFunctionPrintln {} }
-    fn atomize(self) -> Atom {
-        Atom {
-            data: CrispType::Fn(get_crisp_function(Rc::new(self))),
-            symbol: sym::Symbol::Fn(sym::Fn { name: "println".to_string() }),
-        }
-    }
     fn call(&self, args: List) -> Result<Atom, String> {
         if let Some(a1) = args.get(0) {
             if a1.symbol == sym_string() {
@@ -280,17 +326,19 @@ impl CrispyFn for CrispFunctionPrintln {
         Ok(Atom { data: CrispType::List(List::new()), symbol: sym::Symbol::List})
     }
 }
+impl Atomize for CrispFunctionPrintln {
+    fn atomize(self) -> Atom {
+        Atom {
+            data: CrispType::Fn(get_crisp_function(Rc::new(self))),
+            symbol: sym::Symbol::Fn(sym::Fn { name: "println".to_string() }),
+        }
+    }
+}
 
 #[derive(Clone)]
 struct CrispFunctionEval {}
 impl CrispyFn for CrispFunctionEval {
     fn new() -> CrispFunctionEval { CrispFunctionEval {} }
-    fn atomize(self) -> Atom {
-        Atom {
-            data: CrispType::Fn(get_crisp_function(Rc::new(self))),
-            symbol: sym::Symbol::Fn(sym::Fn { name: "eval".to_string() }),
-        }
-    }
     fn call(&self, args: List) -> Result<Atom, String> {
         for a in &args {
             if let CrispType::List(b) = &a.data {
@@ -298,6 +346,14 @@ impl CrispyFn for CrispFunctionEval {
             }
         }
         Ok(Atom { data: CrispType::List(List::new()), symbol: sym::Symbol::List})
+    }
+}
+impl Atomize for CrispFunctionEval {
+    fn atomize(self) -> Atom {
+        Atom {
+            data: CrispType::Fn(get_crisp_function(Rc::new(self))),
+            symbol: sym::Symbol::Fn(sym::Fn { name: "eval".to_string() }),
+        }
     }
 }
 
@@ -397,11 +453,17 @@ fn sym_string() -> sym::Symbol {
     })
 }
 
-fn get_map() -> std::collections::HashMap<String, Atom> {
-    let mut map: std::collections::HashMap<String, Atom> = std::collections::HashMap::new();
-    map.insert("add".to_string(), crate::CrispFunctionAdd::new().atomize());
-    map.insert("println".to_string(), crate::CrispFunctionPrintln::new().atomize());
-    map.insert("eval".to_string(), crate::CrispFunctionEval::new().atomize());
-    map
+fn get_map() -> HashMap<String, Atom> {
+    let mut map: SymMap = SymMap(HashMap::new());
+    map.sadd("add",     crate::CrispFunctionAdd::new());
+    map.sadd("println", crate::CrispFunctionPrintln::new());
+    map.sadd("eval",    crate::CrispFunctionEval::new());
+    map.0
 }
 
+struct SymMap(HashMap<String, Atom>);
+impl SymMap {
+    fn sadd(&mut self, name: &str, data: impl Atomize) {
+        self.0.insert(name.to_string(), data.atomize());
+    }
+}
